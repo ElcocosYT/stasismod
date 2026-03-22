@@ -83,13 +83,7 @@ public class ParadoxScreenHandler extends ScreenHandler {
             this.properties.set(PROPERTY_TIER, state.tier());
             this.properties.set(PROPERTY_SELECTED_MODE, state.selectedLapseMode().ordinal());
             this.properties.set(PROPERTY_CUSTOM_SECONDS, state.customLapseSeconds());
-            int remainingGrits = state.gritCount();
-            int perSlotLimit = ParadoxStateHelper.getMaxGritsPerSlot(state.tier());
-            for (int slot = 0; slot < GRIT_SLOT_COUNT && remainingGrits > 0; slot++) {
-                int stackSize = Math.min(perSlotLimit, remainingGrits);
-                this.panelInventory.setStack(slot, new ItemStack(Stasis.TEMPORAL_GRIT, stackSize));
-                remainingGrits -= stackSize;
-            }
+            populateGritSlots(state.gritCount(), state.tier());
         } else {
             this.properties.set(PROPERTY_TIER, ParadoxStateHelper.TIER_ONE);
             this.properties.set(PROPERTY_SELECTED_MODE, ParadoxLapseMode.PRESET_10.ordinal());
@@ -167,6 +161,10 @@ public class ParadoxScreenHandler extends ScreenHandler {
         moved = stack.copy();
         if (index < PANEL_SLOT_COUNT) {
             if (!insertItem(stack, PANEL_SLOT_COUNT, this.slots.size(), true)) {
+                return ItemStack.EMPTY;
+            }
+        } else if (stack.isOf(Stasis.TEMPORAL_GRIT)) {
+            if (!insertTemporalGritBalanced(stack)) {
                 return ItemStack.EMPTY;
             }
         } else if (!insertItem(stack, 0, PANEL_SLOT_COUNT, false)) {
@@ -330,6 +328,89 @@ public class ParadoxScreenHandler extends ScreenHandler {
                 getCustomSeconds(),
                 Optional.ofNullable(this.expectedItemUuid)
         );
+    }
+
+    private void populateGritSlots(int totalGrits, int tier) {
+        for (int slot = 0; slot < GRIT_SLOT_COUNT; slot++) {
+            this.panelInventory.setStack(slot, ItemStack.EMPTY);
+        }
+
+        int clampedGrits = Math.max(0, Math.min(ParadoxStateHelper.getMaxGritsForTier(tier), totalGrits));
+        if (clampedGrits <= 0) {
+            return;
+        }
+
+        int basePerSlot = clampedGrits / GRIT_SLOT_COUNT;
+        int remainder = clampedGrits % GRIT_SLOT_COUNT;
+        for (int slot = 0; slot < GRIT_SLOT_COUNT; slot++) {
+            int stackSize = basePerSlot + (slot < remainder ? 1 : 0);
+            if (stackSize > 0) {
+                this.panelInventory.setStack(slot, new ItemStack(Stasis.TEMPORAL_GRIT, stackSize));
+            }
+        }
+    }
+
+    private boolean insertTemporalGritBalanced(ItemStack stack) {
+        boolean movedAny = false;
+
+        while (!stack.isEmpty()) {
+            int targetSlotIndex = findBestGritSlot(stack);
+            if (targetSlotIndex < 0) {
+                break;
+            }
+
+            Slot targetSlot = this.slots.get(targetSlotIndex);
+            ItemStack targetStack = targetSlot.getStack();
+            int currentCount = targetStack.isEmpty() ? 0 : targetStack.getCount();
+            int maxCount = targetSlot.getMaxItemCount(stack);
+            int toMove = Math.min(stack.getCount(), maxCount - currentCount);
+            if (toMove <= 0) {
+                break;
+            }
+
+            if (targetStack.isEmpty()) {
+                ItemStack inserted = stack.copy();
+                inserted.setCount(toMove);
+                targetSlot.setStack(inserted);
+            } else {
+                targetStack.increment(toMove);
+                targetSlot.markDirty();
+            }
+
+            stack.decrement(toMove);
+            movedAny = true;
+        }
+
+        return movedAny;
+    }
+
+    private int findBestGritSlot(ItemStack stack) {
+        int bestSlotIndex = -1;
+        int lowestCount = Integer.MAX_VALUE;
+
+        for (int slotIndex = 0; slotIndex < GRIT_SLOT_COUNT; slotIndex++) {
+            Slot gritSlot = this.slots.get(slotIndex);
+            if (!gritSlot.canInsert(stack)) {
+                continue;
+            }
+
+            ItemStack existing = gritSlot.getStack();
+            if (!existing.isEmpty() && !ItemStack.areItemsAndComponentsEqual(existing, stack)) {
+                continue;
+            }
+
+            int currentCount = existing.isEmpty() ? 0 : existing.getCount();
+            if (currentCount >= gritSlot.getMaxItemCount(stack)) {
+                continue;
+            }
+
+            if (currentCount < lowestCount) {
+                lowestCount = currentCount;
+                bestSlotIndex = slotIndex;
+            }
+        }
+
+        return bestSlotIndex;
     }
 
     private ItemStack getOpenParadoxStack(PlayerEntity player) {
