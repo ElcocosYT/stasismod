@@ -1,0 +1,89 @@
+plugins {
+    id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+def artifactVersion = "${project.mod_version}-${project.minecraft_version}"
+
+base {
+    archivesName = project.archives_base_name
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+    archiveBaseName = project.archives_base_name
+    archiveVersion = artifactVersion
+}
+
+repositories {
+    // Repositorio necesario para descargar los mappings de Parchment
+    maven {
+        name = "ParchmentMC"
+        url = "https://maven.parchmentmc.org"
+    }
+    mavenCentral()
+}
+
+loom {
+    splitEnvironmentSourceSets()
+
+    mods {
+        "stasis" {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+dependencies {
+    // Configuración de Minecraft
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    
+    // Mappings de Yarn (El "idioma" de Fabric)
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+
+    // Loader y API de Fabric
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": inputs.properties.version
+    }
+}
+
+// Configuración de compilación para Java 21 (Requerido para 1.21.1)
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+    inputs.property "archivesName", project.base.archivesName
+    inputs.property "artifactVersion", artifactVersion
+
+    from("LICENSE") {
+        rename { "${it}_${inputs.properties.archivesName}"}
+    }
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            artifactId = project.archives_base_name
+            from components.java
+        }
+    }
+    repositories {
+        // Espacio para repositorios de publicación (opcional)
+    }
+}

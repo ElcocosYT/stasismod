@@ -1,0 +1,23 @@
+{
+    "required": true,
+    "package": "com.supper.stasis.mixin",
+    "compatibilityLevel": "JAVA_21",
+    "mixins": [
+        "AbstractPressurePlateBlockMixin",
+        "CreeperEntityMixin",
+        "EntityAccessor",
+        "LivingEntityAccessor",
+        "LivingEntityDamageMixin",
+        "WorldMixin",
+        "ServerWorldMixin",
+        "ServerPlayNetworkHandlerMixin",
+        "TntEntityMixin",
+        "TntMinecartEntityMixin"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    },
+    "overwrites": {
+        "requireAnnotations": true
+    }
+}

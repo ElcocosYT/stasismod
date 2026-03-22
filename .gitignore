@@ -1,0 +1,34 @@
+# Gradle
+.gradle/
+.gradle-user-home/
+.gradle-user-home-fix2/
+build/
+out/
+classes/
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.settings/
+.vscode/
+bin/
+.classpath
+.project
+*.launch
+
+# Runtime
+run/
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr
+build.log
+
+# Local tooling
+.codex/
+.codex_tmp/
+
+# OS
+*.DS_Store

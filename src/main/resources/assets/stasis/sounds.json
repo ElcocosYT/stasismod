@@ -1,0 +1,44 @@
+{
+  "timestopstop": {
+    "sounds": [
+      {
+        "name": "stasis:timestop/stop",
+        "stream": true
+      }
+    ],
+    "subtitle": "subtitles.stasis.timestopstop"
+  },
+  "timestopresume": {
+    "sounds": [
+      {
+        "name": "stasis:timestop/resume",
+        "stream": true
+      }
+    ],
+    "subtitle": "subtitles.stasis.timestopresume"
+  },
+  "timestopstasis": {
+    "sounds": [
+      "stasis:timestop/stasis"
+    ],
+    "subtitle": "subtitles.stasis.timestopstasis"
+  },
+  "timestopstart": {
+    "sounds": [
+      {
+        "name": "stasis:timestop/start",
+        "stream": true
+      }
+    ],
+    "subtitle": "subtitles.stasis.timestopstart"
+  },
+  "timestopbreak": {
+    "sounds": [
+      {
+        "name": "stasis:timestop/break",
+        "stream": true
+      }
+    ],
+    "subtitle": "subtitles.stasis.timestopbreak"
+  }
+}
