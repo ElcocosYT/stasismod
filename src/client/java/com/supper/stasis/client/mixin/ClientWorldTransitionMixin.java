@@ -1,6 +1,7 @@
 package com.supper.stasis.client.mixin;
 
 import com.supper.stasis.client.StasisClientState;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -24,6 +25,9 @@ public class ClientWorldTransitionMixin {
             boolean shouldAdvance = StasisClientState.shouldAdvanceVolatileProgress(entity);
             StasisClientState.onLivingTransitionTickDecision(livingEntity, shouldAdvance);
             if (!shouldAdvance) {
+                if (entity instanceof ClientPlayerEntity clientPlayer && StasisClientState.isRestrictedLocalPlayer(entity)) {
+                    StasisClientState.stabilizeRestrictedLocalPlayer(clientPlayer);
+                }
                 ci.cancel();
                 return;
             }

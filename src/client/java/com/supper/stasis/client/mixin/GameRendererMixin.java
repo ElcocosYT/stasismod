@@ -1,11 +1,14 @@
 package com.supper.stasis.client.mixin;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.supper.stasis.client.StasisClientState;
+import com.supper.stasis.client.render.PlayerTrailRenderer;
 import com.supper.stasis.client.render.StasisShaderManager;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.RenderTickCounter;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -13,6 +16,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(GameRenderer.class)
 public class GameRendererMixin {
+	@Shadow
+	private Camera camera;
+
 	@Unique
 	private boolean stasis$shaderAppliedThisFrame;
 
@@ -33,6 +39,7 @@ public class GameRendererMixin {
 		GameRenderer renderer = (GameRenderer) (Object) this;
 		stasis$renderShader(renderer, tickCounter);
 		stasis$restoreHandRenderState(renderer);
+		PlayerTrailRenderer.renderPostShader(this.camera);
 		this.stasis$shaderAppliedThisFrame = true;
 	}
 
@@ -43,6 +50,7 @@ public class GameRendererMixin {
 		}
 
 		stasis$renderShader((GameRenderer) (Object) this, tickCounter);
+		PlayerTrailRenderer.renderPostShader(this.camera);
 	}
 
 	@Unique

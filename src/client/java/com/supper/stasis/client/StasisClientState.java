@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -182,6 +183,56 @@ public final class StasisClientState {
             return true;
         }
         return false;
+    }
+
+
+    public static boolean isRestrictedLocalPlayer(Entity entity) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientPlayerEntity player = client.player;
+        return player != null
+                && entity == player
+                && client.world != null
+                && phase == StasisPhase.ACTIVE
+                && affectsWorld(client.world)
+                && !isPrivilegedEntity(player);
+    }
+
+
+    public static boolean isTransitioningRestrictedLocalPlayer(Entity entity) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientPlayerEntity player = client.player;
+        return player != null
+                && entity == player
+                && client.world != null
+                && phase.isTransition()
+                && affectsWorld(client.world)
+                && !isPrivilegedEntity(player);
+    }
+
+
+    public static void stabilizeRestrictedLocalPlayer(ClientPlayerEntity player) {
+        if (player == null) {
+            return;
+        }
+
+        player.prevX = player.getX();
+        player.prevY = player.getY();
+        player.prevZ = player.getZ();
+        player.lastRenderX = player.getX();
+        player.lastRenderY = player.getY();
+        player.lastRenderZ = player.getZ();
+        player.prevYaw = player.getYaw();
+        player.prevPitch = player.getPitch();
+        player.prevBodyYaw = player.getBodyYaw();
+        player.prevHeadYaw = player.getHeadYaw();
+        player.lastRenderYaw = player.getYaw();
+        player.renderYaw = player.getYaw();
+        player.lastRenderPitch = player.getPitch();
+        player.renderPitch = player.getPitch();
+        player.prevHorizontalSpeed = 0.0f;
+        player.horizontalSpeed = 0.0f;
+        player.prevStrideDistance = 0.0f;
+        player.strideDistance = 0.0f;
     }
 
 
