@@ -10,9 +10,9 @@
 
 ## Overview
 
-Stasis Paradox adds a staged time-stop system to Minecraft, built around a single artifact that can be charged, upgraded, and tuned for different lapse lengths.
+Stasis Paradox adds a staged time stop system to Minecraft, built around a single artifact that can be charged, upgraded, and tuned for different lapse lengths.
 
-The mod focuses on more than just freezing entities. During Stasis, world progression, movement, sounds, and rendering are all pushed through a synchronized freeze-and-resume flow with custom visuals and audio cues.
+The mod focuses on freezing everything on the world, entities, sounds, movement, etc, and give the player who activates it the capability to interact with anything while the time is stopped.
 
 ## Features
 
