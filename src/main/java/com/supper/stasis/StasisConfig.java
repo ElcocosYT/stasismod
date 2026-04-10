@@ -2,9 +2,9 @@ package com.supper.stasis;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Properties;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -84,14 +84,48 @@ public record StasisConfig(
 	private static void writeDefaults(Path configPath, StasisConfig config) {
 		try {
 			Files.createDirectories(configPath.getParent());
-			Properties output = new Properties();
-			output.setProperty("TrailsAmountLimit", Integer.toString(config.trailsAmountLimit()));
-			output.setProperty("TrailsGenerationType", config.trailsGenerationType());
-			output.setProperty("TrailsContinuousTimings", String.format("%.2f", config.trailsContinuousTimings()));
-			output.setProperty("TrailsMidSecondsGeneration", Boolean.toString(config.trailsMidSecondsGeneration()));
+			try (var writer = Files.newBufferedWriter(
+					configPath,
+					StandardOpenOption.CREATE,
+					StandardOpenOption.TRUNCATE_EXISTING,
+					StandardOpenOption.WRITE
+			)) {
+				writer.write("# Stasis configuration");
+				writer.newLine();
+				writer.write("#");
+				writer.newLine();
+				writer.write("# TrailsAmountLimit: maximum number of trails kept in memory.");
+				writer.newLine();
+				writer.write("# When the limit is reached, the oldest trail is removed first.");
+				writer.newLine();
+				writer.write("TrailsAmountLimit=" + config.trailsAmountLimit());
+				writer.newLine();
+				writer.newLine();
 
-			try (OutputStream outputStream = Files.newOutputStream(configPath)) {
-				output.store(outputStream, "Stasis configuration");
+				writer.write("# TrailsGenerationType: 'C' = continuous, 'S' = seconds.");
+				writer.newLine();
+				writer.write("# C: generates trails continuously using TrailsContinuousTimings as the interval.");
+				writer.newLine();
+				writer.write("# S: generates trails once per in-game second (optionally also at half-seconds).");
+				writer.newLine();
+				writer.write("TrailsGenerationType=" + config.trailsGenerationType());
+				writer.newLine();
+				writer.newLine();
+
+				writer.write("# TrailsContinuousTimings: time between generated trails (in seconds).");
+				writer.newLine();
+				writer.write("# Only used when TrailsGenerationType=C.");
+				writer.newLine();
+				writer.write("TrailsContinuousTimings=" + String.format("%.2f", config.trailsContinuousTimings()));
+				writer.newLine();
+				writer.newLine();
+
+				writer.write("# TrailsMidSecondsGeneration: if true and TrailsGenerationType=S,");
+				writer.newLine();
+				writer.write("# also generates a trail at half-second intervals (2 trails per second).");
+				writer.newLine();
+				writer.write("TrailsMidSecondsGeneration=" + config.trailsMidSecondsGeneration());
+				writer.newLine();
 			}
 		} catch (IOException exception) {
 			Stasis.LOGGER.warn("Failed to write stasis config defaults", exception);
