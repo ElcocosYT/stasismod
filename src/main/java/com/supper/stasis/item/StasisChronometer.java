@@ -14,7 +14,6 @@ import net.minecraft.screen.SimpleNamedScreenHandlerFactory;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
-import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.ActionResult;
@@ -86,12 +85,9 @@ public class StasisChronometer extends Item {
     @Override
     public void appendTooltip(ItemStack stack, TooltipContext context, List<Text> tooltip, TooltipType type) {
         ParadoxStateComponent state = ParadoxStateHelper.getState(stack);
-        tooltip.add(Text.literal(ParadoxStateHelper.getTierTitle(state))
-                .formatted(getTierTitleFormatting(state), Formatting.UNDERLINE, Formatting.BOLD)
-                .append(Text.literal(" | Tier " + roman(state.tier()))
-                        .setStyle(Style.EMPTY.withColor(Formatting.DARK_AQUA).withBold(false).withUnderline(false))));
-        tooltip.add(Text.literal("Lapse: " + ParadoxStateHelper.getLapseLabel(state)).formatted(Formatting.GREEN));
-        tooltip.add(Text.literal("Gives the ability to stop time at will.").formatted(Formatting.GRAY, Formatting.ITALIC));
+        tooltip.add(Text.literal("Tier " + roman(state.tier())).formatted(getTierFormatting(state)));
+        tooltip.add(Text.literal("Lapse: " + ParadoxStateHelper.getSelectedLapseSeconds(state) + "s").formatted(Formatting.GREEN));
+        tooltip.add(Text.literal("The power to stop time entirely, right in your hands.").formatted(Formatting.GRAY, Formatting.ITALIC));
     }
 
     private boolean tryActivate(World world, PlayerEntity user, Hand hand, ItemStack stack) {
@@ -137,10 +133,10 @@ public class StasisChronometer extends Item {
         };
     }
 
-    private Formatting getTierTitleFormatting(ParadoxStateComponent state) {
+    private Formatting getTierFormatting(ParadoxStateComponent state) {
         return switch (state.tier()) {
-            case ParadoxStateHelper.TIER_TWO -> Formatting.DARK_BLUE;
-            case ParadoxStateHelper.TIER_THREE -> Formatting.DARK_RED;
+            case ParadoxStateHelper.TIER_TWO -> Formatting.DARK_AQUA;
+            case ParadoxStateHelper.TIER_THREE -> Formatting.DARK_GRAY;
             default -> Formatting.GOLD;
         };
     }
