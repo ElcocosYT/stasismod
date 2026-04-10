@@ -17,6 +17,7 @@ import net.minecraft.component.ComponentType;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroups;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryKey;
@@ -101,12 +102,14 @@ public class Stasis implements ModInitializer {
         Registry.register(Registries.SOUND_EVENT, TIMESTOP_START_ID, TIMESTOP_START_SOUND);
         Registry.register(Registries.SOUND_EVENT, TIMESTOP_BREAK_ID, TIMESTOP_BREAK_SOUND);
 
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> entries.add(new ItemStack(PARADOX)));
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries ->
+                entries.addAfter(Items.CLOCK, new ItemStack(PARADOX))
+        );
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.INGREDIENTS).register(entries -> {
-            entries.add(new ItemStack(TEMPORAL_GRIT));
-            entries.add(new ItemStack(STASIS_CORE));
-            entries.add(new ItemStack(REINFORCED_DIAMOND));
-            entries.add(new ItemStack(REINFORCED_NETHERITE));
+            entries.addAfter(Items.GUNPOWDER, new ItemStack(TEMPORAL_GRIT));
+            entries.addAfter(TEMPORAL_GRIT, new ItemStack(STASIS_CORE));
+            entries.addAfter(Items.DIAMOND, new ItemStack(REINFORCED_DIAMOND));
+            entries.addAfter(Items.NETHERITE_INGOT, new ItemStack(REINFORCED_NETHERITE));
         });
 
         PayloadTypeRegistry.playS2C().register(StasisSyncPayload.ID, StasisSyncPayload.CODEC);
