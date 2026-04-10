@@ -1,7 +1,10 @@
 package com.supper.stasis.client.render;
 
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.blaze3d.systems.ProjectionType;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.supper.stasis.Stasis;
 import com.supper.stasis.StasisPhase;
@@ -13,8 +16,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
+import net.minecraft.client.render.Camera;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.render.BufferBuilderStorage;
 import net.minecraft.client.render.command.OrderedRenderCommandQueueImpl;
@@ -28,8 +33,11 @@ import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.Vec3d;
+import org.joml.Matrix4f;
+import org.joml.Matrix4fStack;
 
 public final class PlayerTrailRenderer {
+	private static final boolean IRIS_LOADED = FabricLoader.getInstance().isModLoaded("iris");
 	private static final int CAPTURE_INTERVAL_TICKS = 2;
 	private static final double MIN_CAPTURE_DISTANCE_SQUARED = 0.0225;
 	private static final double INTERPOLATION_DISTANCE = 0.9;
@@ -50,6 +58,11 @@ public final class PlayerTrailRenderer {
 	private static int captureCooldown = 0;
 	private static Vec3d lastCapturedSourcePosition = null;
 	private static ItemStack[] lastCapturedEquipmentSnapshot = null;
+	private static Matrix4f cachedWorldPositionMatrix = null;
+	private static GpuBufferSlice cachedProjectionMatrixBuffer = null;
+	private static ProjectionType cachedProjectionType = null;
+	private static Matrix4f cachedModelViewMatrix = null;
+	private static CameraRenderState cachedCameraRenderState = null;
 
 	private PlayerTrailRenderer() {
 	}
@@ -148,6 +161,11 @@ public final class PlayerTrailRenderer {
 			return;
 		}
 
+		cacheRenderState(matrices, cameraRenderState);
+		if (shouldDeferToPostShader()) {
+			return;
+		}
+
 		EntityRenderManager renderManager = client.getEntityRenderDispatcher();
 		BufferBuilderStorage bufferBuilders = client.getBufferBuilders();
 		Vec3d cameraPos = cameraRenderState.pos;
@@ -214,6 +232,131 @@ public final class PlayerTrailRenderer {
 				AfterimageRenderState.pop();
 			}
 		}
+	}
+
+	public static void renderPostShader(Camera camera) {
+		if (!shouldDeferToPostShader()) {
+			return;
+		}
+
+		MinecraftClient client = MinecraftClient.getInstance();
+		if (client.world == null
+				|| SNAPSHOTS.isEmpty()
+				|| camera == null
+				|| cachedWorldPositionMatrix == null
+				|| cachedProjectionMatrixBuffer == null
+				|| cachedProjectionType == null
+				|| cachedModelViewMatrix == null
+				|| cachedCameraRenderState == null
+				|| cachedCameraRenderState.pos == null) {
+			return;
+		}
+
+		AbstractClientPlayerEntity activatingPlayer = getActivatingPlayer(client);
+		if (activatingPlayer == null) {
+			return;
+		}
+
+		EntityRenderManager renderManager = client.getEntityRenderDispatcher();
+		BufferBuilderStorage bufferBuilders = client.getBufferBuilders();
+		Vec3d cameraPos = cachedCameraRenderState.pos;
+
+		MatrixStack matrices = new MatrixStack();
+		matrices.multiplyPositionMatrix(cachedWorldPositionMatrix);
+		Matrix4f previousModelViewMatrix = new Matrix4f(RenderSystem.getModelViewMatrix());
+
+		float oldYaw = activatingPlayer.getYaw();
+		float oldPitch = activatingPlayer.getPitch();
+		float oldLastYaw = activatingPlayer.lastYaw;
+		float oldLastPitch = activatingPlayer.lastPitch;
+		float oldBodyYaw = activatingPlayer.bodyYaw;
+		float oldLastBodyYaw = activatingPlayer.lastBodyYaw;
+		float oldHeadYaw = activatingPlayer.headYaw;
+		float oldLastHeadYaw = activatingPlayer.lastHeadYaw;
+		int oldAge = activatingPlayer.age;
+		float oldLastHandSwingProgress = activatingPlayer.lastHandSwingProgress;
+		float oldHandSwingProgress = activatingPlayer.handSwingProgress;
+		int oldHandSwingTicks = activatingPlayer.handSwingTicks;
+		boolean oldHandSwinging = activatingPlayer.handSwinging;
+		LimbAnimatorAccessor limbAnimator = (LimbAnimatorAccessor) activatingPlayer.limbAnimator;
+		float oldLimbPrevSpeed = limbAnimator.stasis$getPrevSpeed();
+		float oldLimbSpeed = limbAnimator.stasis$getSpeed();
+		float oldLimbPos = limbAnimator.stasis$getPos();
+		ItemStack[] oldEquipment = captureEquipment(activatingPlayer);
+
+		Framebuffer mainFramebuffer = client.getFramebuffer();
+		GpuTextureView previousColorOverride = RenderSystem.outputColorTextureOverride;
+		GpuTextureView previousDepthOverride = RenderSystem.outputDepthTextureOverride;
+		RenderSystem.outputColorTextureOverride = mainFramebuffer.getColorAttachmentView();
+		RenderSystem.outputDepthTextureOverride = mainFramebuffer.useDepthAttachment
+				? mainFramebuffer.getDepthAttachmentView()
+				: null;
+
+		Matrix4fStack modelViewStack = RenderSystem.getModelViewStack();
+		RenderSystem.backupProjectionMatrix();
+		RenderSystem.setProjectionMatrix(cachedProjectionMatrixBuffer, cachedProjectionType);
+		modelViewStack.pushMatrix();
+		modelViewStack.identity();
+		modelViewStack.mul(cachedModelViewMatrix);
+
+		try (RenderDispatcher renderDispatcher = createTrailRenderDispatcher(client, bufferBuilders)) {
+			OrderedRenderCommandQueueImpl commandQueue = renderDispatcher.getQueue();
+			flushBufferBuilders(bufferBuilders);
+			try {
+				renderSnapshots(
+						matrices,
+						renderManager,
+						renderDispatcher,
+						commandQueue,
+						bufferBuilders,
+						activatingPlayer,
+						limbAnimator,
+						cameraPos,
+						cachedCameraRenderState
+				);
+			} finally {
+				modelViewStack.popMatrix();
+				modelViewStack.identity();
+				modelViewStack.mul(previousModelViewMatrix);
+				RenderSystem.restoreProjectionMatrix();
+				RenderSystem.outputColorTextureOverride = previousColorOverride;
+				RenderSystem.outputDepthTextureOverride = previousDepthOverride;
+				activatingPlayer.setYaw(oldYaw);
+				activatingPlayer.setPitch(oldPitch);
+				activatingPlayer.lastYaw = oldLastYaw;
+				activatingPlayer.lastPitch = oldLastPitch;
+				activatingPlayer.bodyYaw = oldBodyYaw;
+				activatingPlayer.lastBodyYaw = oldLastBodyYaw;
+				activatingPlayer.headYaw = oldHeadYaw;
+				activatingPlayer.lastHeadYaw = oldLastHeadYaw;
+				activatingPlayer.age = oldAge;
+				activatingPlayer.lastHandSwingProgress = oldLastHandSwingProgress;
+				activatingPlayer.handSwingProgress = oldHandSwingProgress;
+				activatingPlayer.handSwingTicks = oldHandSwingTicks;
+				activatingPlayer.handSwinging = oldHandSwinging;
+				limbAnimator.stasis$setPrevSpeed(oldLimbPrevSpeed);
+				limbAnimator.stasis$setSpeed(oldLimbSpeed);
+				limbAnimator.stasis$setPos(oldLimbPos);
+				applyEquipment(activatingPlayer, oldEquipment);
+				if (AfterimageRenderState.isActive()) {
+					AfterimageRenderState.pop();
+				}
+			}
+		}
+	}
+
+	private static boolean shouldDeferToPostShader() {
+		return IRIS_LOADED
+				&& (StasisClientState.isActive()
+				|| StasisClientState.getPhase() == StasisPhase.TRANSITION_OUT);
+	}
+
+	private static void cacheRenderState(MatrixStack matrices, CameraRenderState cameraRenderState) {
+		cachedWorldPositionMatrix = new Matrix4f(matrices.peek().getPositionMatrix());
+		cachedProjectionMatrixBuffer = RenderSystem.getProjectionMatrixBuffer();
+		cachedProjectionType = RenderSystem.getProjectionType();
+		cachedModelViewMatrix = new Matrix4f(RenderSystem.getModelViewMatrix());
+		cachedCameraRenderState = cameraRenderState;
 	}
 
 	private static void renderSnapshots(
@@ -569,6 +712,11 @@ public final class PlayerTrailRenderer {
 		captureCooldown = 0;
 		lastCapturedSourcePosition = null;
 		lastCapturedEquipmentSnapshot = null;
+		cachedWorldPositionMatrix = null;
+		cachedProjectionMatrixBuffer = null;
+		cachedProjectionType = null;
+		cachedModelViewMatrix = null;
+		cachedCameraRenderState = null;
 	}
 
 	private static AbstractClientPlayerEntity getActivatingPlayer(MinecraftClient client) {
