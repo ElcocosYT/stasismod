@@ -1,0 +1,26 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "entries": [
+      {
+        "threshold": 1.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "stasis:item/astralparadox"
+        }
+      },
+      {
+        "threshold": 2.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "stasis:item/voidparadox"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "stasis:item/paradox"
+    }
+  }
+}

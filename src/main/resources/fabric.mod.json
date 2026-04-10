@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "id": "stasis",
+  "version": "1.0.1",
+  "name": "Stasis",
+  "description": "A Minecraft mod that implements a balanced time-stop mechanic with the Paradox, use at your own risk.",
+  "authors": [
+    {
+      "name": "SupperDupper",
+      "contact": {
+        "github": "https://github.com/ElcocosYT"
+      }
+    }
+  ],
+  "contributors": [],
+  "contact": {
+    "homepage": "https://modrinth.com/mod/stasis-paradox",
+    "issues": "https://github.com/ElcocosYT/stasismod/issues",
+    "sources": "https://github.com/ElcocosYT/stasismod"
+  },
+  "license": "All Rights Reserved",
+  "icon": "assets/stasis/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.supper.stasis.Stasis"
+    ],
+    "client": [
+      "com.supper.stasis.client.StasisClient"
+    ]
+  },
+  "mixins": [
+    "stasis.mixins.json",
+    {
+      "config": "stasis.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": ["GgG", "gCg", "GgG"],
+  "key": {
+    "G": "minecraft:gold_ingot",
+    "g": "stasis:temporalgrit",
+    "C": "stasis:stasiscore"
+  },
+  "result": { "id": "stasis:paradox", "count": 1 }
+}
