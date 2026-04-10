@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [" g ", "gDg", " g "],
+  "key": {
+    "g": { "item": "stasis:temporal_grit" },
+    "D": { "item": "minecraft:diamond" }
+  },
+  "result": { "id": "stasis:stasiscore", "count": 1 }
+}

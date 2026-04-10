@@ -1,0 +1,38 @@
+{
+  "targets": [
+    "swap",
+    "trail_color"
+  ],
+  "passes": [
+    {
+      "name": "stasis_grayscale",
+      "intarget": "minecraft:main",
+      "outtarget": "swap",
+      "auxtargets": [
+        {
+          "name": "TrailSampler",
+          "id": "trail_color"
+        }
+      ],
+      "uniforms": [
+        {
+          "name": "Progress",
+          "values": [
+            0.0
+          ]
+        },
+        {
+          "name": "Radius",
+          "values": [
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "blit",
+      "intarget": "swap",
+      "outtarget": "minecraft:main"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    { "item": "minecraft:diamond" },
+    { "item": "minecraft:echo_shard" }
+  ],
+  "result": { "id": "stasis:reinforced_diamond", "count": 1 }
+}

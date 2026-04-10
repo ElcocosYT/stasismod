@@ -1,0 +1,13 @@
+{
+  "item.stasis.paradox": "Paradox",
+  "item.stasis.temporal_grit": "Temporal Grit",
+  "item.stasis.stasiscore": "Stasis Core",
+  "item.stasis.reinforced_diamond": "Reinforced Diamond",
+  "item.stasis.reinforced_netherite": "Reinforced Netherite",
+  "screen.stasis.paradox": "Paradox",
+  "subtitles.stasis.timestopstop": "Time locks in place",
+  "subtitles.stasis.timestopresume": "Time resumes",
+  "subtitles.stasis.timestopstasis": "Time stands still",
+  "subtitles.stasis.timestopstart": "A bell marks the fracture",
+  "subtitles.stasis.timestopbreak": "Stasis shatters"
+}

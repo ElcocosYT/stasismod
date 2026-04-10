@@ -1,0 +1,28 @@
+{
+	"required": true,
+	"package": "com.supper.stasis.client.mixin",
+	"compatibilityLevel": "JAVA_17",
+	"mixins": [
+    "AbstractSoundInstanceMixin",
+    "ArmorFeatureRendererMixin",
+    "BipedEntityModelAfterimageMixin",
+    "CameraMixin",
+    "ClientEntityLookMixin",
+    "ClientPlayNetworkHandlerMixin",
+    "ClientWorldTransitionMixin",
+    "EntityAfterimageStateMixin",
+    "EntityRenderDispatcherMixin",
+    "GameRendererMixin",
+    "ItemRendererAfterimageMixin",
+    "LimbAnimatorAccessor",
+    "LivingEntityAfterimageStateMixin",
+    "LivingEntityRendererMixin",
+    "PlayerEntityRendererAfterimageMixin",
+    "PostEffectProcessorAccessor",
+    "SoundSystemMixin",
+    "WorldRendererTransitionMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
