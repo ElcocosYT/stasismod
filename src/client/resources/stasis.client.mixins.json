@@ -22,7 +22,6 @@
     "PostEffectPassAccessor",
     "PostEffectProcessorAccessor",
     "PlayerEntityRendererAfterimageMixin",
-    "ProjectileEntityRendererMixin",
     "RenderDispatcherAccessor",
     "SoundSystemMixin",
     "TridentEntityRendererMixin"

@@ -5,5 +5,5 @@
     "minecraft:ender_eye",
     "minecraft:ender_pearl"
   ],
-  "result": { "id": "stasis:temporalgrit", "count": 2 }
+  "result": { "id": "stasis:temporal_grit", "count": 2 }
 }

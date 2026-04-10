@@ -48,15 +48,11 @@ public final class StasisTimings {
 	}
 
 	public static int getTransitionInTicks() {
-		return Stasis.CONFIG != null
-				? Math.max(1, Stasis.CONFIG.transitionInTicks())
-				: secondsToTicks(STOP_SOUND_SECONDS);
+		return secondsToTicks(STOP_SOUND_SECONDS);
 	}
 
 	public static int getTransitionOutTicks() {
-		return Stasis.CONFIG != null
-				? Math.max(1, Stasis.CONFIG.transitionOutTicks())
-				: secondsToTicks(RESUME_SOUND_SECONDS);
+		return secondsToTicks(RESUME_SOUND_SECONDS);
 	}
 
 	private static int secondsToTicks(double seconds) {

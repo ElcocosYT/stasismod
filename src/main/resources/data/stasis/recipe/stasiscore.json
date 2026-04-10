@@ -3,7 +3,7 @@
   "category": "misc",
   "pattern": [" g ", "gDg", " g "],
   "key": {
-    "g": "stasis:temporalgrit",
+    "g": "stasis:temporal_grit",
     "D": "minecraft:diamond"
   },
   "result": { "id": "stasis:stasiscore", "count": 1 }

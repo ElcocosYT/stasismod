@@ -33,10 +33,10 @@ public class Stasis implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     public static final RegistryKey<Item> PARADOX_KEY = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(MOD_ID, "paradox"));
-    public static final RegistryKey<Item> TEMPORAL_GRIT_KEY = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(MOD_ID, "temporalgrit"));
+    public static final RegistryKey<Item> TEMPORAL_GRIT_KEY = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(MOD_ID, "temporal_grit"));
     public static final RegistryKey<Item> STASIS_CORE_KEY = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(MOD_ID, "stasiscore"));
-    public static final RegistryKey<Item> REINFORCED_DIAMOND_KEY = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(MOD_ID, "reinforceddiamond"));
-    public static final RegistryKey<Item> REINFORCED_NETHERITE_KEY = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(MOD_ID, "reinforcednetherite"));
+    public static final RegistryKey<Item> REINFORCED_DIAMOND_KEY = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(MOD_ID, "reinforced_diamond"));
+    public static final RegistryKey<Item> REINFORCED_NETHERITE_KEY = RegistryKey.of(RegistryKeys.ITEM, Identifier.of(MOD_ID, "reinforced_netherite"));
 
     public static final Identifier TIMESTOP_STOP_ID = Identifier.of(MOD_ID, "timestopstop");
     public static final Identifier TIMESTOP_RESUME_ID = Identifier.of(MOD_ID, "timestopresume");
