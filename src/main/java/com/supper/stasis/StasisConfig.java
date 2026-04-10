@@ -9,11 +9,13 @@ import java.util.Properties;
 import net.fabricmc.loader.api.FabricLoader;
 
 public record StasisConfig(
+		boolean trailsActive,
 		int trailsAmountLimit,
 		String trailsGenerationType,
 		double trailsContinuousTimings,
 		boolean trailsMidSecondsGeneration
 ) {
+	private static final boolean DEFAULT_TRAILS_ACTIVE = true;
 	private static final int DEFAULT_TRAILS_AMOUNT_LIMIT = 100;
 	private static final String DEFAULT_TRAILS_GENERATION_TYPE = "C";
 	private static final double DEFAULT_TRAILS_CONTINUOUS_TIMINGS = 0.05;
@@ -31,6 +33,7 @@ public record StasisConfig(
 		}
 
 		StasisConfig config = new StasisConfig(
+				readBoolean(properties, "TrailsActive", DEFAULT_TRAILS_ACTIVE),
 				readInt(properties, "TrailsAmountLimit", DEFAULT_TRAILS_AMOUNT_LIMIT, 1, 1000),
 				readString(properties, "TrailsGenerationType", DEFAULT_TRAILS_GENERATION_TYPE),
 				readDouble(properties, "TrailsContinuousTimings", DEFAULT_TRAILS_CONTINUOUS_TIMINGS, 0.01, 10.0),
@@ -94,6 +97,12 @@ public record StasisConfig(
 				writer.newLine();
 				writer.write("#");
 				writer.newLine();
+				writer.write("# TrailsActive: when false, player trails are not generated or rendered.");
+				writer.newLine();
+				writer.write("TrailsActive=" + config.trailsActive());
+				writer.newLine();
+				writer.newLine();
+
 				writer.write("# TrailsAmountLimit: maximum number of trails kept in memory.");
 				writer.newLine();
 				writer.write("# When the limit is reached, the oldest trail is removed first.");
