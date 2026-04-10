@@ -2,8 +2,10 @@ package com.supper.stasis.client.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.VertexSorter;
+import com.supper.stasis.Stasis;
 import com.supper.stasis.StasisTimings;
 import com.supper.stasis.client.StasisClientState;
+import com.supper.stasis.client.compat.EmfTrailCompat;
 import com.supper.stasis.client.mixin.LimbAnimatorAccessor;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,6 +63,11 @@ public final class PlayerTrailRenderer {
 			return;
 		}
 
+		if (!Stasis.CONFIG.trailsActive()) {
+			reset();
+			return;
+		}
+
 		if (!StasisClientState.isRunning() || !StasisClientState.affectsWorld(client.world)) {
 			reset();
 			return;
@@ -114,7 +121,16 @@ public final class PlayerTrailRenderer {
 
 	public static void render(WorldRenderContext context) {
 		MinecraftClient client = MinecraftClient.getInstance();
-		if (client.world == null || SNAPSHOTS.isEmpty()) {
+		if (client.world == null) {
+			return;
+		}
+
+		if (!Stasis.CONFIG.trailsActive()) {
+			SNAPSHOTS.clear();
+			return;
+		}
+
+		if (SNAPSHOTS.isEmpty()) {
 			return;
 		}
 
@@ -344,16 +360,18 @@ public final class PlayerTrailRenderer {
 						snapshot.itemUseTimeLeft
 				);
 				try {
-					dispatcher.render(
-							activatingPlayer,
-							snapshot.position.x - cameraPos.x,
-							snapshot.position.y - cameraPos.y,
-							snapshot.position.z - cameraPos.z,
-							snapshot.bodyYaw,
-							0.0f,
-							matrices,
-							vertexConsumers,
-							light
+					EmfTrailCompat.runWithVanillaPlayerModel(activatingPlayer, () ->
+							dispatcher.render(
+									activatingPlayer,
+									snapshot.position.x - cameraPos.x,
+									snapshot.position.y - cameraPos.y,
+									snapshot.position.z - cameraPos.z,
+									snapshot.bodyYaw,
+									0.0f,
+									matrices,
+									vertexConsumers,
+									light
+							)
 					);
 				} finally {
 					AfterimageRenderState.pop();
