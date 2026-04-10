@@ -1,9 +1,9 @@
 {
   "item.stasis.paradox": "Paradox",
-  "item.stasis.temporalgrit": "Temporal Grit",
+  "item.stasis.temporal_grit": "Temporal Grit",
   "item.stasis.stasiscore": "Stasis Core",
-  "item.stasis.reinforceddiamond": "Reinforced Diamond",
-  "item.stasis.reinforcednetherite": "Reinforced Netherite",
+  "item.stasis.reinforced_diamond": "Reinforced Diamond",
+  "item.stasis.reinforced_netherite": "Reinforced Netherite",
   "screen.stasis.paradox": "Paradox",
   "subtitles.stasis.timestopstop": "Time locks in place",
   "subtitles.stasis.timestopresume": "Time resumes",

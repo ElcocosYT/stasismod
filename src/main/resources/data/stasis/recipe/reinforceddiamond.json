@@ -5,5 +5,5 @@
     { "item": "minecraft:diamond" },
     { "item": "minecraft:echo_shard" }
   ],
-  "result": { "id": "stasis:reinforceddiamond", "count": 1 }
+  "result": { "id": "stasis:reinforced_diamond", "count": 1 }
 }

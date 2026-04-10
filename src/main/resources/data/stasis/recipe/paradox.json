@@ -4,7 +4,7 @@
   "pattern": ["GgG", "gCg", "GgG"],
   "key": {
     "G": { "item": "minecraft:gold_ingot" },
-    "g": { "item": "stasis:temporalgrit" },
+    "g": { "item": "stasis:temporal_grit" },
     "C": { "item": "stasis:stasiscore" }
   },
   "result": { "id": "stasis:paradox", "count": 1 }

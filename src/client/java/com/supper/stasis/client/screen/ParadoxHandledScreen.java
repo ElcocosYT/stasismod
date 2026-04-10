@@ -18,6 +18,7 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
+import com.mojang.blaze3d.systems.RenderSystem;
 
 public class ParadoxHandledScreen extends HandledScreen<ParadoxScreenHandler> {
     private static final int SCREEN_WIDTH = 248;
@@ -251,9 +252,11 @@ public class ParadoxHandledScreen extends HandledScreen<ParadoxScreenHandler> {
         }
     }
 
+
+
     private void drawDecorativeOverlays(DrawContext context) {
         context.getMatrices().push();
-        context.getMatrices().translate(0.0f, 0.0f, 500.0f);
+        context.getMatrices().translate(0, 0, 500);
         context.drawTexture(
                 ENDER_PEARL_OVERLAY_TEXTURE,
                 this.x + ENDER_PEARL_X,

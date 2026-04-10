@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "stasis:item/temporalgrit"
+    "layer0": "stasis:item/temporal_grit"
   }
 }

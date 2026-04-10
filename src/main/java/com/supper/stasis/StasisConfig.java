@@ -9,15 +9,15 @@ import java.util.Properties;
 import net.fabricmc.loader.api.FabricLoader;
 
 public record StasisConfig(
-		int chronometerUses,
-		int transitionInTicks,
-		int activeTicks,
-		int transitionOutTicks
+		int trailsAmountLimit,
+		String trailsGenerationType,
+		double trailsContinuousTimings,
+		boolean trailsMidSecondsGeneration
 ) {
-	private static final int DEFAULT_CHRONOMETER_USES = 5;
-	private static final int DEFAULT_TRANSITION_IN_TICKS = Math.max(1, (int) Math.round(StasisTimings.STOP_SOUND_SECONDS * 20.0));
-	private static final int DEFAULT_ACTIVE_TICKS = 300;
-	private static final int DEFAULT_TRANSITION_OUT_TICKS = Math.max(1, (int) Math.round(StasisTimings.RESUME_SOUND_SECONDS * 20.0));
+	private static final int DEFAULT_TRAILS_AMOUNT_LIMIT = 100;
+	private static final String DEFAULT_TRAILS_GENERATION_TYPE = "C";
+	private static final double DEFAULT_TRAILS_CONTINUOUS_TIMINGS = 0.05;
+	private static final boolean DEFAULT_TRAILS_MID_SECONDS_GENERATION = false;
 
 	public static StasisConfig load() {
 		Path configPath = FabricLoader.getInstance().getConfigDir().resolve("stasis.properties");
@@ -31,10 +31,10 @@ public record StasisConfig(
 		}
 
 		StasisConfig config = new StasisConfig(
-				readInt(properties, "chronometerUses", DEFAULT_CHRONOMETER_USES, 1, 128),
-				readInt(properties, "transitionInTicks", DEFAULT_TRANSITION_IN_TICKS, 1, 200),
-				readInt(properties, "activeTicks", DEFAULT_ACTIVE_TICKS, 20, 72000),
-				readInt(properties, "transitionOutTicks", DEFAULT_TRANSITION_OUT_TICKS, 1, 200)
+				readInt(properties, "TrailsAmountLimit", DEFAULT_TRAILS_AMOUNT_LIMIT, 1, 1000),
+				readString(properties, "TrailsGenerationType", DEFAULT_TRAILS_GENERATION_TYPE),
+				readDouble(properties, "TrailsContinuousTimings", DEFAULT_TRAILS_CONTINUOUS_TIMINGS, 0.01, 10.0),
+				readBoolean(properties, "TrailsMidSecondsGeneration", DEFAULT_TRAILS_MID_SECONDS_GENERATION)
 		);
 		writeDefaults(configPath, config);
 		return config;
@@ -54,14 +54,41 @@ public record StasisConfig(
 		}
 	}
 
+	private static String readString(Properties properties, String key, String defaultValue) {
+		String value = properties.getProperty(key);
+		return value != null ? value.trim() : defaultValue;
+	}
+
+	private static double readDouble(Properties properties, String key, double defaultValue, double minValue, double maxValue) {
+		String value = properties.getProperty(key);
+		if (value == null) {
+			return defaultValue;
+		}
+
+		try {
+			double parsedValue = Double.parseDouble(value.trim());
+			return Math.max(minValue, Math.min(maxValue, parsedValue));
+		} catch (NumberFormatException exception) {
+			return defaultValue;
+		}
+	}
+
+	private static boolean readBoolean(Properties properties, String key, boolean defaultValue) {
+		String value = properties.getProperty(key);
+		if (value == null) {
+			return defaultValue;
+		}
+		return Boolean.parseBoolean(value.trim());
+	}
+
 	private static void writeDefaults(Path configPath, StasisConfig config) {
 		try {
 			Files.createDirectories(configPath.getParent());
 			Properties output = new Properties();
-			output.setProperty("chronometerUses", Integer.toString(config.chronometerUses()));
-			output.setProperty("transitionInTicks", Integer.toString(config.transitionInTicks()));
-			output.setProperty("activeTicks", Integer.toString(config.activeTicks()));
-			output.setProperty("transitionOutTicks", Integer.toString(config.transitionOutTicks()));
+			output.setProperty("TrailsAmountLimit", Integer.toString(config.trailsAmountLimit()));
+			output.setProperty("TrailsGenerationType", config.trailsGenerationType());
+			output.setProperty("TrailsContinuousTimings", String.format("%.2f", config.trailsContinuousTimings()));
+			output.setProperty("TrailsMidSecondsGeneration", Boolean.toString(config.trailsMidSecondsGeneration()));
 
 			try (OutputStream outputStream = Files.newOutputStream(configPath)) {
 				output.store(outputStream, "Stasis configuration");

@@ -5,5 +5,5 @@
     { "item": "minecraft:netherite_ingot" },
     { "item": "minecraft:echo_shard" }
   ],
-  "result": { "id": "stasis:reinforcednetherite", "count": 1 }
+  "result": { "id": "stasis:reinforced_netherite", "count": 1 }
 }
