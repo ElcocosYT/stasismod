@@ -3,9 +3,11 @@ package com.supper.stasis.client.render;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.opengl.GlStateManager;
+import com.supper.stasis.Stasis;
 import com.supper.stasis.StasisPhase;
 import com.supper.stasis.StasisTimings;
 import com.supper.stasis.client.StasisClientState;
+import com.supper.stasis.client.compat.EmfTrailCompat;
 import com.supper.stasis.client.mixin.LimbAnimatorAccessor;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,6 +56,11 @@ public final class PlayerTrailRenderer {
 
 	public static void onClientTick(MinecraftClient client) {
 		if (client.world == null) {
+			reset();
+			return;
+		}
+
+		if (!Stasis.CONFIG.trailsActive()) {
 			reset();
 			return;
 		}
@@ -112,6 +119,11 @@ public final class PlayerTrailRenderer {
 	public static void render(WorldRenderContext context) {
 		MinecraftClient client = MinecraftClient.getInstance();
 		if (client.world == null) {
+			return;
+		}
+
+		if (!Stasis.CONFIG.trailsActive()) {
+			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
@@ -273,37 +285,39 @@ public final class PlayerTrailRenderer {
 						snapshot.itemUseTime
 				);
 				try {
-					EntityRenderState renderState;
-					applyRenderPosition(activatingPlayer, snapshot.position);
-					try {
-						renderState = renderManager.getAndUpdateRenderState(activatingPlayer, 0.0f);
-						renderState.shadowRadius = 0.0f;
-						renderState.shadowPieces.clear();
-					} finally {
-						restoreRenderPosition(
-								activatingPlayer,
-								originalRenderPosition,
-								originalLastX,
-								originalLastY,
-								originalLastZ,
-								originalLastRenderX,
-								originalLastRenderY,
-								originalLastRenderZ
+					EmfTrailCompat.runWithVanillaPlayerModel(activatingPlayer, () -> {
+						EntityRenderState renderState;
+						applyRenderPosition(activatingPlayer, snapshot.position);
+						try {
+							renderState = renderManager.getAndUpdateRenderState(activatingPlayer, 0.0f);
+							renderState.shadowRadius = 0.0f;
+							renderState.shadowPieces.clear();
+						} finally {
+							restoreRenderPosition(
+									activatingPlayer,
+									originalRenderPosition,
+									originalLastX,
+									originalLastY,
+									originalLastZ,
+									originalLastRenderX,
+									originalLastRenderY,
+									originalLastRenderZ
+							);
+						}
+						renderManager.render(
+								renderState,
+								cameraRenderState,
+								snapshot.position.x - cameraPos.x,
+								snapshot.position.y - cameraPos.y,
+								snapshot.position.z - cameraPos.z,
+								matrices,
+								commandQueue
 						);
-					}
-					renderManager.render(
-							renderState,
-							cameraRenderState,
-							snapshot.position.x - cameraPos.x,
-							snapshot.position.y - cameraPos.y,
-							snapshot.position.z - cameraPos.z,
-							matrices,
-							commandQueue
-					);
-					// Build deferred commands while the afterimage overrides are active, but keep the
-					// batched buffers alive until the whole pass is ready to draw like 1.21.1 did.
-					renderDispatcher.render();
-					renderDispatcher.endLayeredCustoms();
+						// Build deferred commands while the afterimage overrides are active, but keep the
+						// batched buffers alive until the whole pass is ready to draw like 1.21.1 did.
+						renderDispatcher.render();
+						renderDispatcher.endLayeredCustoms();
+					});
 				} finally {
 					AfterimageRenderState.pop();
 				}
