@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "stasis",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "name": "Stasis Paradox",
   "description": "A Minecraft mod that implements a balanced time-stop mechanic with the Paradox, use at your own risk.",
   "authors": [
