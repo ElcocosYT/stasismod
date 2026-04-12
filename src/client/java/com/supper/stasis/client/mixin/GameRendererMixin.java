@@ -25,6 +25,7 @@ public class GameRendererMixin {
 	@Inject(method = "renderWorld", at = @At("HEAD"))
 	private void stasis$resetShaderFlag(RenderTickCounter tickCounter, CallbackInfo ci) {
 		this.stasis$shaderAppliedThisFrame = false;
+		PlayerTrailRenderer.beginRenderFrame();
 		StasisClientState.updateRenderProgress(tickCounter.getTickDelta(false));
 	}
 
@@ -37,9 +38,10 @@ public class GameRendererMixin {
 	)
 	private void stasis$applyStasisShaderBeforeHand(RenderTickCounter tickCounter, CallbackInfo ci) {
 		GameRenderer renderer = (GameRenderer) (Object) this;
+		PlayerTrailRenderer.captureTrailFramebufferPostWorld(this.camera);
 		stasis$renderShader(renderer, tickCounter);
-		stasis$restoreHandRenderState(renderer);
 		PlayerTrailRenderer.renderPostShader(this.camera);
+		stasis$restoreHandRenderState(renderer);
 		this.stasis$shaderAppliedThisFrame = true;
 	}
 
@@ -49,6 +51,7 @@ public class GameRendererMixin {
 			return;
 		}
 
+		PlayerTrailRenderer.captureTrailFramebufferPostWorld(this.camera);
 		stasis$renderShader((GameRenderer) (Object) this, tickCounter);
 		PlayerTrailRenderer.renderPostShader(this.camera);
 	}

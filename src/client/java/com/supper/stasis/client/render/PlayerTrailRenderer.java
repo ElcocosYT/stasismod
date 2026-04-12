@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.VertexSorter;
 import com.supper.stasis.Stasis;
 import com.supper.stasis.StasisTimings;
 import com.supper.stasis.client.StasisClientState;
+import com.supper.stasis.client.WeatherDebugLogger;
 import com.supper.stasis.client.compat.EmfTrailCompat;
 import com.supper.stasis.client.mixin.LimbAnimatorAccessor;
 import java.util.ArrayList;
@@ -26,8 +27,10 @@ import net.minecraft.util.Hand;
 import org.joml.Matrix4f;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.util.math.MatrixStack;
+import org.lwjgl.opengl.GL11;
 
 public final class PlayerTrailRenderer {
+	private static final boolean SODIUM_LOADED = FabricLoader.getInstance().isModLoaded("sodium");
 	private static final boolean IRIS_LOADED = FabricLoader.getInstance().isModLoaded("iris");
 	private static final int CAPTURE_INTERVAL_TICKS = 2;
 	private static final double MIN_CAPTURE_DISTANCE_SQUARED = 0.0225;
@@ -53,6 +56,7 @@ public final class PlayerTrailRenderer {
 	private static Matrix4f cachedProjectionMatrix = null;
 	private static Matrix4f cachedModelViewMatrix = null;
 	private static VertexSorter cachedVertexSorter = null;
+	private static boolean cachedTrailFramebufferDepthPrepared = false;
 
 	private PlayerTrailRenderer() {
 	}
@@ -119,32 +123,63 @@ public final class PlayerTrailRenderer {
 		lastCapturedSourcePosition = currentPosition;
 	}
 
+	public static void beginRenderFrame() {
+		cachedTrailFramebufferDepthPrepared = false;
+	}
+
 	public static void render(WorldRenderContext context) {
 		MinecraftClient client = MinecraftClient.getInstance();
 		if (client.world == null) {
+			cachedTrailFramebufferDepthPrepared = false;
 			return;
 		}
 
 		if (!Stasis.CONFIG.trailsActive()) {
+			cachedTrailFramebufferDepthPrepared = false;
 			SNAPSHOTS.clear();
+			WeatherDebugLogger.logTrailPass("1.21.1", client, "trails_disabled", StasisClientState.isRunning(), SNAPSHOTS.isEmpty(), SODIUM_LOADED, IRIS_LOADED);
+			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		if (SNAPSHOTS.isEmpty()) {
+			cachedTrailFramebufferDepthPrepared = false;
+			WeatherDebugLogger.logTrailPass("1.21.1", client, "snapshots_empty", StasisClientState.isRunning(), true, SODIUM_LOADED, IRIS_LOADED);
+			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		if (!StasisClientState.isRunning() || !StasisClientState.affectsWorld(client.world)) {
+			cachedTrailFramebufferDepthPrepared = false;
+			WeatherDebugLogger.logTrailPass("1.21.1", client, "stasis_not_running", false, false, SODIUM_LOADED, IRIS_LOADED);
+			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		AbstractClientPlayerEntity activatingPlayer = getActivatingPlayer(client);
 		if (activatingPlayer == null) {
+			cachedTrailFramebufferDepthPrepared = false;
+			WeatherDebugLogger.logTrailPass("1.21.1", client, "no_activating_player", true, false, SODIUM_LOADED, IRIS_LOADED);
+			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		cacheWorldMatrix(context);
+		if (shouldRenderTrailFramebufferInPostPass()) {
+			WeatherDebugLogger.logTrailPass("1.21.1", client, "post_world_trail_capture", true, false, SODIUM_LOADED, IRIS_LOADED);
+			Framebuffer trailFramebuffer = StasisShaderManager.getTrailFramebuffer(client.gameRenderer);
+			cachedTrailFramebufferDepthPrepared = false;
+			if (trailFramebuffer != null) {
+				trailFramebuffer.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+				trailFramebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
+				trailFramebuffer.copyDepthFrom(client.getFramebuffer());
+				client.getFramebuffer().beginWrite(false);
+				cachedTrailFramebufferDepthPrepared = true;
+			}
+			return;
+		}
 		if (shouldDeferToPostShader()) {
+			StasisShaderManager.clearTrailFramebuffer(client.gameRenderer);
 			return;
 		}
 
@@ -191,6 +226,12 @@ public final class PlayerTrailRenderer {
 			vertexConsumers.draw();
 		} finally {
 			dispatcher.setRenderShadows(true);
+			// Vanilla weather enables blending but does not always restore the default blend function.
+			// Trail/entity rendering can leave a non-standard blend state behind, which makes rain quads
+			// disappear even though splash particles still spawn.
+			RenderSystem.enableDepthTest();
+			RenderSystem.depthMask(true);
+			RenderSystem.defaultBlendFunc();
 			// Reset player state to original
 			activatingPlayer.setYaw(oldYaw);
 			activatingPlayer.setPitch(oldPitch);
@@ -278,6 +319,117 @@ public final class PlayerTrailRenderer {
 			RenderSystem.getModelViewStack().mul(previousModelViewMatrix);
 			RenderSystem.applyModelViewMatrix();
 			RenderSystem.restoreProjectionMatrix();
+			dispatcher.setRenderShadows(true);
+			activatingPlayer.setYaw(oldYaw);
+			activatingPlayer.setPitch(oldPitch);
+			activatingPlayer.prevYaw = oldPrevYaw;
+			activatingPlayer.prevPitch = oldPrevPitch;
+			activatingPlayer.bodyYaw = oldBodyYaw;
+			activatingPlayer.prevBodyYaw = oldPrevBodyYaw;
+			activatingPlayer.headYaw = oldHeadYaw;
+			activatingPlayer.prevHeadYaw = oldPrevHeadYaw;
+			activatingPlayer.age = oldAge;
+			activatingPlayer.lastHandSwingProgress = oldLastHandSwingProgress;
+			activatingPlayer.handSwingProgress = oldHandSwingProgress;
+			activatingPlayer.handSwingTicks = oldHandSwingTicks;
+			activatingPlayer.handSwinging = oldHandSwinging;
+			limbAnimator.stasis$setPrevSpeed(oldLimbPrevSpeed);
+			limbAnimator.stasis$setSpeed(oldLimbSpeed);
+			limbAnimator.stasis$setPos(oldLimbPos);
+			applyEquipment(activatingPlayer, oldEquipment);
+			if (AfterimageRenderState.isActive()) {
+				AfterimageRenderState.pop();
+			}
+		}
+	}
+
+	public static void captureTrailFramebufferPostWorld(Camera camera) {
+		if (!shouldRenderTrailFramebufferInPostPass()) {
+			return;
+		}
+
+		MinecraftClient client = MinecraftClient.getInstance();
+		if (client.world == null
+				|| SNAPSHOTS.isEmpty()
+				|| camera == null
+				|| cachedWorldPositionMatrix == null
+				|| cachedProjectionMatrix == null
+				|| cachedModelViewMatrix == null
+				|| cachedVertexSorter == null) {
+			return;
+		}
+
+		AbstractClientPlayerEntity activatingPlayer = getActivatingPlayer(client);
+		if (activatingPlayer == null) {
+			return;
+		}
+
+		EntityRenderDispatcher dispatcher = client.getEntityRenderDispatcher();
+		Vec3d cameraPos = camera.getPos();
+		int light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+		VertexConsumerProvider.Immediate vertexConsumers = client.getBufferBuilders().getEffectVertexConsumers();
+		MatrixStack matrices = new MatrixStack();
+		matrices.multiplyPositionMatrix(cachedWorldPositionMatrix);
+		Matrix4f previousModelViewMatrix = new Matrix4f(RenderSystem.getModelViewMatrix());
+
+		float oldYaw = activatingPlayer.getYaw();
+		float oldPitch = activatingPlayer.getPitch();
+		float oldPrevYaw = activatingPlayer.prevYaw;
+		float oldPrevPitch = activatingPlayer.prevPitch;
+		float oldBodyYaw = activatingPlayer.bodyYaw;
+		float oldPrevBodyYaw = activatingPlayer.prevBodyYaw;
+		float oldHeadYaw = activatingPlayer.headYaw;
+		float oldPrevHeadYaw = activatingPlayer.prevHeadYaw;
+		int oldAge = activatingPlayer.age;
+		float oldLastHandSwingProgress = activatingPlayer.lastHandSwingProgress;
+		float oldHandSwingProgress = activatingPlayer.handSwingProgress;
+		int oldHandSwingTicks = activatingPlayer.handSwingTicks;
+		boolean oldHandSwinging = activatingPlayer.handSwinging;
+		LimbAnimatorAccessor limbAnimator = (LimbAnimatorAccessor) activatingPlayer.limbAnimator;
+		float oldLimbPrevSpeed = limbAnimator.stasis$getPrevSpeed();
+		float oldLimbSpeed = limbAnimator.stasis$getSpeed();
+		float oldLimbPos = limbAnimator.stasis$getPos();
+		ItemStack[] oldEquipment = captureEquipment(activatingPlayer);
+
+		dispatcher.setRenderShadows(false);
+		try {
+			Framebuffer trailFramebuffer = StasisShaderManager.getTrailFramebuffer(client.gameRenderer);
+			if (trailFramebuffer == null) {
+				cachedTrailFramebufferDepthPrepared = false;
+				return;
+			}
+
+			if (cachedTrailFramebufferDepthPrepared) {
+				clearTrailFramebufferColorOnly(trailFramebuffer);
+			} else {
+				trailFramebuffer.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+				trailFramebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
+				trailFramebuffer.copyDepthFrom(client.getFramebuffer());
+				trailFramebuffer.beginWrite(false);
+			}
+
+			RenderSystem.enableDepthTest();
+			RenderSystem.depthMask(true);
+			RenderSystem.defaultBlendFunc();
+			RenderSystem.backupProjectionMatrix();
+			RenderSystem.setProjectionMatrix(new Matrix4f(cachedProjectionMatrix), cachedVertexSorter);
+			RenderSystem.getModelViewStack().pushMatrix();
+			RenderSystem.getModelViewStack().identity();
+			RenderSystem.getModelViewStack().mul(cachedModelViewMatrix);
+			RenderSystem.applyModelViewMatrix();
+			try {
+				renderSnapshots(matrices, dispatcher, activatingPlayer, limbAnimator, cameraPos, light, vertexConsumers);
+				vertexConsumers.draw();
+			} finally {
+				trailFramebuffer.endWrite();
+				client.getFramebuffer().beginWrite(false);
+				RenderSystem.getModelViewStack().popMatrix();
+				RenderSystem.getModelViewStack().identity();
+				RenderSystem.getModelViewStack().mul(previousModelViewMatrix);
+				RenderSystem.applyModelViewMatrix();
+				RenderSystem.restoreProjectionMatrix();
+			}
+		} finally {
 			dispatcher.setRenderShadows(true);
 			activatingPlayer.setYaw(oldYaw);
 			activatingPlayer.setPitch(oldPitch);
@@ -522,12 +674,25 @@ public final class PlayerTrailRenderer {
 		cachedProjectionMatrix = null;
 		cachedModelViewMatrix = null;
 		cachedVertexSorter = null;
+		cachedTrailFramebufferDepthPrepared = false;
 	}
 
 	private static boolean shouldDeferToPostShader() {
-		return IRIS_LOADED
-				&& (StasisClientState.isActive()
-				|| StasisClientState.getPhase() == com.supper.stasis.StasisPhase.TRANSITION_OUT);
+		return false;
+	}
+
+	private static boolean shouldRenderTrailFramebufferInPostPass() {
+		// Legacy Sodium and Iris both alter the framebuffer chain enough that filling trail_color
+		// during the world pass can leak state into vanilla weather rendering. Capturing the trail
+		// mask immediately before the stasis composite keeps cyan intact without interfering with
+		// rain streak rendering.
+		return SODIUM_LOADED || IRIS_LOADED;
+	}
+
+	private static void clearTrailFramebufferColorOnly(Framebuffer trailFramebuffer) {
+		trailFramebuffer.beginWrite(false);
+		RenderSystem.clearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		RenderSystem.clear(GL11.GL_COLOR_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
 	}
 
 	private static void cacheWorldMatrix(WorldRenderContext context) {

@@ -27,6 +27,8 @@ public final class StasisClientState {
     private static final Map<UUID, ClientTransitionTickState> transitionTickStates = new HashMap<>();
     private static final Map<UUID, Float> activeLivingRenderDeltas = new HashMap<>();
     private static float lastVanillaRenderTickDelta = 0.0f;
+    private static double precipitationTimelineVanilla = Double.NaN;
+    private static double precipitationTimelineScaled = 0.0;
 
     // For continuous per-frame interpolation during transitions (fixes the "32fps" visual)
     private static float renderProgressStart = 0.0f;
@@ -42,7 +44,11 @@ public final class StasisClientState {
         StasisPhase oldPhase = phase;
         StasisPhase newPhase = payload.phase();
         Map<UUID, Float> releaseStartLivingRenderDeltas = null;
+        Map<UUID, ClientFrozenEntityState> preservedNonLivingStates = null;
         if (phase != newPhase) {
+            if (oldPhase.isRunning() && newPhase.isRunning()) {
+                preservedNonLivingStates = preserveNonLivingFrozenStates();
+            }
             if (oldPhase == StasisPhase.TRANSITION_IN && newPhase == StasisPhase.ACTIVE) {
                 activeLivingRenderDeltas.clear();
                 for (Map.Entry<UUID, ClientFrozenEntityState> entry : frozenEntityStates.entrySet()) {
@@ -58,6 +64,9 @@ public final class StasisClientState {
             }
             frozenEntityStates.clear();
             transitionTickStates.clear();
+            if (preservedNonLivingStates != null) {
+                frozenEntityStates.putAll(preservedNonLivingStates);
+            }
             if (releaseStartLivingRenderDeltas != null) {
                 seedTransitionOutLivingStatesFromActivePose(releaseStartLivingRenderDeltas);
             }
@@ -111,6 +120,8 @@ public final class StasisClientState {
         renderProgressEnd = 0.0f;
         renderProgressFrame = 0.0f;
         lastVanillaRenderTickDelta = 0.0f;
+        precipitationTimelineVanilla = Double.NaN;
+        precipitationTimelineScaled = 0.0;
     }
 
 
@@ -121,6 +132,52 @@ public final class StasisClientState {
 
     public static float getProgress() {
         return progress;
+    }
+
+    private static float getCurrentPrecipitationMovementScale() {
+        float scaleInput = phase == StasisPhase.TRANSITION_IN || phase == StasisPhase.TRANSITION_OUT
+                ? renderProgressFrame
+                : progress;
+        return StasisTimings.getMovementScale(phase, scaleInput);
+    }
+
+    /**
+     * Integrates precipitation time forward using the current movement scale so the result stays
+     * monotonic through transition curves and never "reverses" mid-freeze.
+     */
+    private static double getPrecipitationTimeline(double vanillaTime) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world == null || !isRunning() || !affectsWorld(client.world)) {
+            precipitationTimelineVanilla = vanillaTime;
+            precipitationTimelineScaled = vanillaTime;
+            return vanillaTime;
+        }
+        if (Double.isNaN(precipitationTimelineVanilla) || vanillaTime < precipitationTimelineVanilla) {
+            precipitationTimelineVanilla = vanillaTime;
+            precipitationTimelineScaled = vanillaTime;
+            return vanillaTime;
+        }
+        double delta = vanillaTime - precipitationTimelineVanilla;
+        if (delta > 0.0) {
+            precipitationTimelineScaled += delta * getCurrentPrecipitationMovementScale();
+            precipitationTimelineVanilla = vanillaTime;
+        }
+        return precipitationTimelineScaled;
+    }
+
+    public static int getPrecipitationTicks(int vanillaTicks, float vanillaTickProgress) {
+        double precipitationTime = getPrecipitationTimeline(vanillaTicks + StasisTimings.clamp01(vanillaTickProgress));
+        return (int) Math.floor(precipitationTime + 1.0e-6);
+    }
+
+    public static int getPrecipitationTicks(int vanillaTicks) {
+        return getPrecipitationTicks(vanillaTicks, lastVanillaRenderTickDelta);
+    }
+
+    public static float getPrecipitationSubTickProgress(int vanillaTicks, float vanillaTickProgress) {
+        double precipitationTime = getPrecipitationTimeline(vanillaTicks + StasisTimings.clamp01(vanillaTickProgress));
+        double precipitationWholeTicks = Math.floor(precipitationTime + 1.0e-6);
+        return StasisTimings.clamp01((float) (precipitationTime - precipitationWholeTicks));
     }
 
 
@@ -413,6 +470,7 @@ public final class StasisClientState {
             entity.verticalCollision = state.verticalCollision;
             entity.groundCollision = state.groundCollision;
             entity.velocityModified = state.velocityModified;
+            syncNonLivingTransitionRenderState(entity, state.position, state.yaw, state.pitch);
         } else {
             Vec3d scaledPosition = state.position.add(entity.getPos().subtract(state.position).multiply(transitionScale));
             entity.setPosition(scaledPosition);
@@ -429,6 +487,7 @@ public final class StasisClientState {
             entity.verticalCollision = state.verticalCollision || entity.verticalCollision;
             entity.groundCollision = state.groundCollision || entity.groundCollision;
             entity.velocityModified = state.velocityModified || entity.velocityModified;
+            syncNonLivingTransitionRenderState(entity, state.position, yaw, pitch);
         }
     }
 
@@ -455,8 +514,11 @@ public final class StasisClientState {
 
 
     public static void prepareTransitionTick(Entity entity) {
+        // Projectiles should keep the natural release arc during TRANSITION_OUT.
+        // Re-applying the stored resume velocity every tick makes them "sag" and
+        // snap back upward between frames instead of following one smooth path.
         if (phase != StasisPhase.TRANSITION_OUT || isPrivilegedEntity(entity)
-                || entity instanceof LivingEntity || entity.isRemoved()) {
+                || entity instanceof LivingEntity || entity instanceof ProjectileEntity || entity.isRemoved()) {
             return;
         }
         ClientFrozenEntityState state = frozenEntityStates.get(entity.getUuid());
@@ -523,6 +585,26 @@ public final class StasisClientState {
         return StasisTimings.getMovementScale(phase, renderProgressFrame);
     }
 
+    private static Map<UUID, ClientFrozenEntityState> preserveNonLivingFrozenStates() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world == null || frozenEntityStates.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, ClientFrozenEntityState> preservedStates = new HashMap<>();
+        for (Entity entity : client.world.getEntities()) {
+            if (entity == null || entity.isRemoved() || entity instanceof LivingEntity || isPrivilegedEntity(entity)) {
+                continue;
+            }
+
+            ClientFrozenEntityState state = frozenEntityStates.get(entity.getUuid());
+            if (state != null) {
+                preservedStates.put(entity.getUuid(), state);
+            }
+        }
+        return preservedStates;
+    }
+
     private static void syncActivePreviousRenderStateForNonLiving() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.world == null) {
@@ -532,14 +614,7 @@ public final class StasisClientState {
             if (entity == null || entity.isRemoved() || entity instanceof LivingEntity || isPrivilegedEntity(entity)) {
                 continue;
             }
-            entity.prevX = entity.getX();
-            entity.prevY = entity.getY();
-            entity.prevZ = entity.getZ();
-            entity.lastRenderX = entity.getX();
-            entity.lastRenderY = entity.getY();
-            entity.lastRenderZ = entity.getZ();
-            entity.prevYaw = entity.getYaw();
-            entity.prevPitch = entity.getPitch();
+            syncNonLivingTransitionRenderState(entity, entity.getPos(), entity.getYaw(), entity.getPitch());
         }
     }
 
@@ -566,6 +641,17 @@ public final class StasisClientState {
 
     private static boolean hasMeaningfulVelocity(Vec3d velocity) {
         return velocity.lengthSquared() > 1.0E-6;
+    }
+
+    private static void syncNonLivingTransitionRenderState(Entity entity, Vec3d previousPosition, float previousYaw, float previousPitch) {
+        entity.prevX = previousPosition.x;
+        entity.prevY = previousPosition.y;
+        entity.prevZ = previousPosition.z;
+        entity.lastRenderX = previousPosition.x;
+        entity.lastRenderY = previousPosition.y;
+        entity.lastRenderZ = previousPosition.z;
+        entity.prevYaw = previousYaw;
+        entity.prevPitch = previousPitch;
     }
 
 

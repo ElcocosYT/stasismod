@@ -19,7 +19,8 @@
     "LivingEntityRendererMixin",
     "PlayerEntityRendererAfterimageMixin",
     "SoundSystemMixin",
-    "WorldRendererTransitionMixin"
+    "WorldRendererTransitionMixin",
+    "WorldRendererWeatherMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
