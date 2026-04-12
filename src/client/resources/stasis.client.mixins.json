@@ -20,7 +20,8 @@
     "PlayerEntityRendererAfterimageMixin",
     "PostEffectProcessorAccessor",
     "SoundSystemMixin",
-    "WorldRendererTransitionMixin"
+    "WorldRendererTransitionMixin",
+    "WorldRendererWeatherMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

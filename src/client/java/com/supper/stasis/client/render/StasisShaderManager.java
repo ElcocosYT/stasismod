@@ -1,5 +1,7 @@
 package com.supper.stasis.client.render;
 
+import com.supper.stasis.client.WeatherDebugLogger;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.gl.PostEffectPass;
 import net.minecraft.client.gl.PostEffectProcessor;
@@ -48,7 +50,6 @@ public final class StasisShaderManager {
 			shaderEffect.setupDimensions(width, height);
 			shaderWidth = width;
 			shaderHeight = height;
-			LOGGER.info("Stasis shader loaded successfully");
 		} catch (Exception exception) {
 			LOGGER.error("Failed to load stasis shader", exception);
 			shaderEffect = null;
@@ -91,6 +92,38 @@ public final class StasisShaderManager {
 	public static Framebuffer getTrailFramebuffer(GameRenderer gameRenderer) {
 		ensureLoaded(gameRenderer);
 		return shaderEffect != null ? shaderEffect.getSecondaryTarget("trail_color") : null;
+	}
+
+	public static void clearTrailFramebuffer(GameRenderer gameRenderer) {
+		boolean shaderLoadedBeforeLookup = shaderEffect != null;
+		int beforeLookupBinding = WeatherDebugLogger.getFramebufferBinding();
+		Framebuffer trailFramebuffer = getTrailFramebuffer(gameRenderer);
+		int afterLookupBinding = WeatherDebugLogger.getFramebufferBinding();
+		if (trailFramebuffer == null) {
+			WeatherDebugLogger.logTrailFramebufferClear(
+					"1.20.1",
+					gameRenderer.getClient(),
+					null,
+					shaderLoadedBeforeLookup,
+					beforeLookupBinding,
+					afterLookupBinding,
+					afterLookupBinding
+			);
+			return;
+		}
+
+		trailFramebuffer.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		trailFramebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
+		gameRenderer.getClient().getFramebuffer().beginWrite(false);
+		WeatherDebugLogger.logTrailFramebufferClear(
+				"1.20.1",
+				gameRenderer.getClient(),
+				trailFramebuffer,
+				shaderLoadedBeforeLookup,
+				beforeLookupBinding,
+				afterLookupBinding,
+				WeatherDebugLogger.getFramebufferBinding()
+		);
 	}
 
 	private static void applyUniform(String uniformName, float value) {

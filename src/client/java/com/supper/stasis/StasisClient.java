@@ -31,7 +31,7 @@ public class StasisClient implements ClientModInitializer {
             PlayerTrailRenderer.onClientTick(client);
             StasisLoopSoundController.tick(client);
         });
-        WorldRenderEvents.AFTER_ENTITIES.register(PlayerTrailRenderer::render);
+        WorldRenderEvents.AFTER_TRANSLUCENT.register(PlayerTrailRenderer::render);
         HudRenderCallback.EVENT.register((drawContext, renderTickCounter) -> StasisHudOverlay.render(drawContext));
     }
 }
