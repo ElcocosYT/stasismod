@@ -206,6 +206,7 @@ public final class PlayerTrailRenderer {
 		float oldLimbPrevSpeed = limbAnimator.stasis$getPrevSpeed();
 		float oldLimbSpeed = limbAnimator.stasis$getSpeed();
 		float oldLimbPos = limbAnimator.stasis$getPos();
+		CapeState oldCapeState = captureCapeState(activatingPlayer);
 		ItemStack[] oldEquipment = captureEquipment(activatingPlayer);
 
 		dispatcher.setRenderShadows(false);
@@ -249,6 +250,7 @@ public final class PlayerTrailRenderer {
 			limbAnimator.stasis$setPrevSpeed(oldLimbPrevSpeed);
 			limbAnimator.stasis$setSpeed(oldLimbSpeed);
 			limbAnimator.stasis$setPos(oldLimbPos);
+			applyCapeState(activatingPlayer, oldCapeState);
 			applyEquipment(activatingPlayer, oldEquipment);
 			// CRITICAL: Pop any remaining afterimage state
 			if (AfterimageRenderState.isActive()) {
@@ -297,6 +299,7 @@ public final class PlayerTrailRenderer {
 		float oldLimbPrevSpeed = limbAnimator.stasis$getPrevSpeed();
 		float oldLimbSpeed = limbAnimator.stasis$getSpeed();
 		float oldLimbPos = limbAnimator.stasis$getPos();
+		CapeState oldCapeState = captureCapeState(activatingPlayer);
 		ItemStack[] oldEquipment = captureEquipment(activatingPlayer);
 
 		client.getFramebuffer().beginWrite(false);
@@ -336,6 +339,7 @@ public final class PlayerTrailRenderer {
 			limbAnimator.stasis$setPrevSpeed(oldLimbPrevSpeed);
 			limbAnimator.stasis$setSpeed(oldLimbSpeed);
 			limbAnimator.stasis$setPos(oldLimbPos);
+			applyCapeState(activatingPlayer, oldCapeState);
 			applyEquipment(activatingPlayer, oldEquipment);
 			if (AfterimageRenderState.isActive()) {
 				AfterimageRenderState.pop();
@@ -389,6 +393,7 @@ public final class PlayerTrailRenderer {
 		float oldLimbPrevSpeed = limbAnimator.stasis$getPrevSpeed();
 		float oldLimbSpeed = limbAnimator.stasis$getSpeed();
 		float oldLimbPos = limbAnimator.stasis$getPos();
+		CapeState oldCapeState = captureCapeState(activatingPlayer);
 		ItemStack[] oldEquipment = captureEquipment(activatingPlayer);
 
 		dispatcher.setRenderShadows(false);
@@ -418,10 +423,18 @@ public final class PlayerTrailRenderer {
 			RenderSystem.getModelViewStack().multiplyPositionMatrix(cachedModelViewMatrix);
 			RenderSystem.applyModelViewMatrix();
 			try {
+				try {
+					renderSnapshots(matrices, dispatcher, activatingPlayer, limbAnimator, cameraPos, light, vertexConsumers);
+					vertexConsumers.draw();
+				} finally {
+					trailFramebuffer.endWrite();
+				}
+
+				client.getFramebuffer().copyDepthFrom(trailFramebuffer);
+				client.getFramebuffer().beginWrite(false);
 				renderSnapshots(matrices, dispatcher, activatingPlayer, limbAnimator, cameraPos, light, vertexConsumers);
 				vertexConsumers.draw();
 			} finally {
-				trailFramebuffer.endWrite();
 				client.getFramebuffer().beginWrite(false);
 				RenderSystem.getModelViewStack().pop();
 				RenderSystem.getModelViewStack().loadIdentity();
@@ -447,6 +460,7 @@ public final class PlayerTrailRenderer {
 			limbAnimator.stasis$setPrevSpeed(oldLimbPrevSpeed);
 			limbAnimator.stasis$setSpeed(oldLimbSpeed);
 			limbAnimator.stasis$setPos(oldLimbPos);
+			applyCapeState(activatingPlayer, oldCapeState);
 			applyEquipment(activatingPlayer, oldEquipment);
 			if (AfterimageRenderState.isActive()) {
 				AfterimageRenderState.pop();
@@ -497,6 +511,7 @@ public final class PlayerTrailRenderer {
 				limbAnimator.stasis$setPrevSpeed(snapshot.limbPrevSpeed);
 				limbAnimator.stasis$setSpeed(snapshot.limbSpeed);
 				limbAnimator.stasis$setPos(snapshot.limbPos);
+				applyCapeState(activatingPlayer, snapshot.capeState);
 				if (snapshot.equippedStacks != lastAppliedEquipment) {
 					applyEquipment(activatingPlayer, snapshot.equippedStacks);
 					lastAppliedEquipment = snapshot.equippedStacks;
@@ -568,6 +583,7 @@ public final class PlayerTrailRenderer {
 				player.handSwingProgress,
 				player.handSwingTicks,
 				player.handSwinging,
+				captureCapeState(player),
 				capturedPose,
 				capturedSneaking,
 				captureEquipmentSnapshot(player),
@@ -630,6 +646,34 @@ public final class PlayerTrailRenderer {
 			equippedStacks[slot.ordinal()] = player.getEquippedStack(slot).copy();
 		}
 		return equippedStacks;
+	}
+
+	private static CapeState captureCapeState(AbstractClientPlayerEntity player) {
+		return new CapeState(
+				player.prevCapeX,
+				player.capeX,
+				player.prevCapeY,
+				player.capeY,
+				player.prevCapeZ,
+				player.capeZ,
+				player.prevHorizontalSpeed,
+				player.horizontalSpeed,
+				player.prevStrideDistance,
+				player.strideDistance
+		);
+	}
+
+	private static void applyCapeState(AbstractClientPlayerEntity player, CapeState capeState) {
+		player.prevCapeX = capeState.prevCapeX();
+		player.capeX = capeState.capeX();
+		player.prevCapeY = capeState.prevCapeY();
+		player.capeY = capeState.capeY();
+		player.prevCapeZ = capeState.prevCapeZ();
+		player.capeZ = capeState.capeZ();
+		player.prevHorizontalSpeed = capeState.prevHorizontalSpeed();
+		player.horizontalSpeed = capeState.horizontalSpeed();
+		player.prevStrideDistance = capeState.prevStrideDistance();
+		player.strideDistance = capeState.strideDistance();
 	}
 
 	private static ItemStack[] captureEquipmentSnapshot(AbstractClientPlayerEntity player) {
@@ -739,12 +783,27 @@ public final class PlayerTrailRenderer {
 			float handSwingProgress,
 			int handSwingTicks,
 			boolean handSwinging,
+			CapeState capeState,
 			EntityPose pose,
 			boolean sneaking,
 			ItemStack[] equippedStacks,
 			boolean usingItem,
 			Hand activeHand,
 			int itemUseTimeLeft
+	) {
+	}
+
+	private record CapeState(
+			double prevCapeX,
+			double capeX,
+			double prevCapeY,
+			double capeY,
+			double prevCapeZ,
+			double capeZ,
+			float prevHorizontalSpeed,
+			float horizontalSpeed,
+			float prevStrideDistance,
+			float strideDistance
 	) {
 	}
 }
