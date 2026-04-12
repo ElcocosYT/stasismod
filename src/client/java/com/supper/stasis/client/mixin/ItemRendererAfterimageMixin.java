@@ -1,13 +1,11 @@
 package com.supper.stasis.client.mixin;
 
 import com.supper.stasis.client.render.AfterimageRenderState;
+import com.supper.stasis.client.render.AfterimageTintingVertexConsumerProvider;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderLayers;
+import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.item.ItemRenderer;
-import net.minecraft.client.render.model.BakedModel;
-import net.minecraft.client.render.model.BakedQuad;
-import net.minecraft.client.render.model.json.ModelTransformationMode;
-import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.item.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.tag.ItemTags;
@@ -15,6 +13,7 @@ import net.minecraft.util.Identifier;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(ItemRenderer.class)
@@ -69,52 +68,14 @@ public class ItemRendererAfterimageMixin {
 		return AfterimageRenderState.isActive() ? false : hasGlint;
 	}
 
-	@ModifyArg(
-			method = "renderBakedItemQuads",
-			at = @At(
-					value = "INVOKE",
-					target = "Lnet/minecraft/client/render/VertexConsumer;quad(Lnet/minecraft/client/util/math/MatrixStack$Entry;Lnet/minecraft/client/render/model/BakedQuad;FFFFII)V"
-			),
-			index = 2
+	@ModifyVariable(
+			method = "renderItem(Lnet/minecraft/item/ItemStack;Lnet/minecraft/client/render/model/json/ModelTransformationMode;ZLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;IILnet/minecraft/client/render/model/BakedModel;)V",
+			at = @At("HEAD"),
+			argsOnly = true,
+			ordinal = 0
 	)
-	private float stasis$applyItemRed(float red) {
-		return AfterimageRenderState.isActive() ? AfterimageRenderState.getRedFloat() : red;
-	}
-
-	@ModifyArg(
-			method = "renderBakedItemQuads",
-			at = @At(
-					value = "INVOKE",
-					target = "Lnet/minecraft/client/render/VertexConsumer;quad(Lnet/minecraft/client/util/math/MatrixStack$Entry;Lnet/minecraft/client/render/model/BakedQuad;FFFFII)V"
-			),
-			index = 3
-	)
-	private float stasis$applyItemGreen(float green) {
-		return AfterimageRenderState.isActive() ? AfterimageRenderState.getGreenFloat() : green;
-	}
-
-	@ModifyArg(
-			method = "renderBakedItemQuads",
-			at = @At(
-					value = "INVOKE",
-					target = "Lnet/minecraft/client/render/VertexConsumer;quad(Lnet/minecraft/client/util/math/MatrixStack$Entry;Lnet/minecraft/client/render/model/BakedQuad;FFFFII)V"
-			),
-			index = 4
-	)
-	private float stasis$applyItemBlue(float blue) {
-		return AfterimageRenderState.isActive() ? AfterimageRenderState.getBlueFloat() : blue;
-	}
-
-	@ModifyArg(
-			method = "renderBakedItemQuads",
-			at = @At(
-					value = "INVOKE",
-					target = "Lnet/minecraft/client/render/VertexConsumer;quad(Lnet/minecraft/client/util/math/MatrixStack$Entry;Lnet/minecraft/client/render/model/BakedQuad;FFFFII)V"
-			),
-			index = 5
-	)
-	private float stasis$applyItemAlpha(float alpha) {
-		return AfterimageRenderState.isActive() ? AfterimageRenderState.getAlphaFloat() : alpha;
+	private VertexConsumerProvider stasis$wrapAfterimageItemVertexConsumers(VertexConsumerProvider vertexConsumers) {
+		return AfterimageTintingVertexConsumerProvider.wrap(vertexConsumers);
 	}
 
 	private static boolean usesDynamicDisplay(ItemStack stack) {
