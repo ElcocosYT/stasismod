@@ -226,12 +226,6 @@ public final class PlayerTrailRenderer {
 			vertexConsumers.draw();
 		} finally {
 			dispatcher.setRenderShadows(true);
-			// Vanilla weather enables blending but does not always restore the default blend function.
-			// Trail/entity rendering can leave a non-standard blend state behind, which makes rain quads
-			// disappear even though splash particles still spawn.
-			RenderSystem.enableDepthTest();
-			RenderSystem.depthMask(true);
-			RenderSystem.defaultBlendFunc();
 			// Reset player state to original
 			activatingPlayer.setYaw(oldYaw);
 			activatingPlayer.setPitch(oldPitch);
@@ -319,117 +313,6 @@ public final class PlayerTrailRenderer {
 			RenderSystem.getModelViewStack().mul(previousModelViewMatrix);
 			RenderSystem.applyModelViewMatrix();
 			RenderSystem.restoreProjectionMatrix();
-			dispatcher.setRenderShadows(true);
-			activatingPlayer.setYaw(oldYaw);
-			activatingPlayer.setPitch(oldPitch);
-			activatingPlayer.prevYaw = oldPrevYaw;
-			activatingPlayer.prevPitch = oldPrevPitch;
-			activatingPlayer.bodyYaw = oldBodyYaw;
-			activatingPlayer.prevBodyYaw = oldPrevBodyYaw;
-			activatingPlayer.headYaw = oldHeadYaw;
-			activatingPlayer.prevHeadYaw = oldPrevHeadYaw;
-			activatingPlayer.age = oldAge;
-			activatingPlayer.lastHandSwingProgress = oldLastHandSwingProgress;
-			activatingPlayer.handSwingProgress = oldHandSwingProgress;
-			activatingPlayer.handSwingTicks = oldHandSwingTicks;
-			activatingPlayer.handSwinging = oldHandSwinging;
-			limbAnimator.stasis$setPrevSpeed(oldLimbPrevSpeed);
-			limbAnimator.stasis$setSpeed(oldLimbSpeed);
-			limbAnimator.stasis$setPos(oldLimbPos);
-			applyEquipment(activatingPlayer, oldEquipment);
-			if (AfterimageRenderState.isActive()) {
-				AfterimageRenderState.pop();
-			}
-		}
-	}
-
-	public static void captureTrailFramebufferPostWorld(Camera camera) {
-		if (!shouldRenderTrailFramebufferInPostPass()) {
-			return;
-		}
-
-		MinecraftClient client = MinecraftClient.getInstance();
-		if (client.world == null
-				|| SNAPSHOTS.isEmpty()
-				|| camera == null
-				|| cachedWorldPositionMatrix == null
-				|| cachedProjectionMatrix == null
-				|| cachedModelViewMatrix == null
-				|| cachedVertexSorter == null) {
-			return;
-		}
-
-		AbstractClientPlayerEntity activatingPlayer = getActivatingPlayer(client);
-		if (activatingPlayer == null) {
-			return;
-		}
-
-		EntityRenderDispatcher dispatcher = client.getEntityRenderDispatcher();
-		Vec3d cameraPos = camera.getPos();
-		int light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
-		VertexConsumerProvider.Immediate vertexConsumers = client.getBufferBuilders().getEffectVertexConsumers();
-		MatrixStack matrices = new MatrixStack();
-		matrices.multiplyPositionMatrix(cachedWorldPositionMatrix);
-		Matrix4f previousModelViewMatrix = new Matrix4f(RenderSystem.getModelViewMatrix());
-
-		float oldYaw = activatingPlayer.getYaw();
-		float oldPitch = activatingPlayer.getPitch();
-		float oldPrevYaw = activatingPlayer.prevYaw;
-		float oldPrevPitch = activatingPlayer.prevPitch;
-		float oldBodyYaw = activatingPlayer.bodyYaw;
-		float oldPrevBodyYaw = activatingPlayer.prevBodyYaw;
-		float oldHeadYaw = activatingPlayer.headYaw;
-		float oldPrevHeadYaw = activatingPlayer.prevHeadYaw;
-		int oldAge = activatingPlayer.age;
-		float oldLastHandSwingProgress = activatingPlayer.lastHandSwingProgress;
-		float oldHandSwingProgress = activatingPlayer.handSwingProgress;
-		int oldHandSwingTicks = activatingPlayer.handSwingTicks;
-		boolean oldHandSwinging = activatingPlayer.handSwinging;
-		LimbAnimatorAccessor limbAnimator = (LimbAnimatorAccessor) activatingPlayer.limbAnimator;
-		float oldLimbPrevSpeed = limbAnimator.stasis$getPrevSpeed();
-		float oldLimbSpeed = limbAnimator.stasis$getSpeed();
-		float oldLimbPos = limbAnimator.stasis$getPos();
-		ItemStack[] oldEquipment = captureEquipment(activatingPlayer);
-
-		dispatcher.setRenderShadows(false);
-		try {
-			Framebuffer trailFramebuffer = StasisShaderManager.getTrailFramebuffer(client.gameRenderer);
-			if (trailFramebuffer == null) {
-				cachedTrailFramebufferDepthPrepared = false;
-				return;
-			}
-
-			if (cachedTrailFramebufferDepthPrepared) {
-				clearTrailFramebufferColorOnly(trailFramebuffer);
-			} else {
-				trailFramebuffer.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-				trailFramebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
-				trailFramebuffer.copyDepthFrom(client.getFramebuffer());
-				trailFramebuffer.beginWrite(false);
-			}
-
-			RenderSystem.enableDepthTest();
-			RenderSystem.depthMask(true);
-			RenderSystem.defaultBlendFunc();
-			RenderSystem.backupProjectionMatrix();
-			RenderSystem.setProjectionMatrix(new Matrix4f(cachedProjectionMatrix), cachedVertexSorter);
-			RenderSystem.getModelViewStack().pushMatrix();
-			RenderSystem.getModelViewStack().identity();
-			RenderSystem.getModelViewStack().mul(cachedModelViewMatrix);
-			RenderSystem.applyModelViewMatrix();
-			try {
-				renderSnapshots(matrices, dispatcher, activatingPlayer, limbAnimator, cameraPos, light, vertexConsumers);
-				vertexConsumers.draw();
-			} finally {
-				trailFramebuffer.endWrite();
-				client.getFramebuffer().beginWrite(false);
-				RenderSystem.getModelViewStack().popMatrix();
-				RenderSystem.getModelViewStack().identity();
-				RenderSystem.getModelViewStack().mul(previousModelViewMatrix);
-				RenderSystem.applyModelViewMatrix();
-				RenderSystem.restoreProjectionMatrix();
-			}
-		} finally {
 			dispatcher.setRenderShadows(true);
 			activatingPlayer.setYaw(oldYaw);
 			activatingPlayer.setPitch(oldPitch);
@@ -660,6 +543,117 @@ public final class PlayerTrailRenderer {
 		for (EquipmentSlot slot : EquipmentSlot.values()) {
 			if (slot.ordinal() < equippedStacks.length) {
 				player.equipStack(slot, equippedStacks[slot.ordinal()]);
+			}
+		}
+	}
+
+	public static void captureTrailFramebufferPostWorld(Camera camera) {
+		if (!shouldRenderTrailFramebufferInPostPass()) {
+			return;
+		}
+
+		MinecraftClient client = MinecraftClient.getInstance();
+		if (client.world == null
+				|| SNAPSHOTS.isEmpty()
+				|| camera == null
+				|| cachedWorldPositionMatrix == null
+				|| cachedProjectionMatrix == null
+				|| cachedModelViewMatrix == null
+				|| cachedVertexSorter == null) {
+			return;
+		}
+
+		AbstractClientPlayerEntity activatingPlayer = getActivatingPlayer(client);
+		if (activatingPlayer == null) {
+			return;
+		}
+
+		EntityRenderDispatcher dispatcher = client.getEntityRenderDispatcher();
+		Vec3d cameraPos = camera.getPos();
+		int light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+		VertexConsumerProvider.Immediate vertexConsumers = client.getBufferBuilders().getEffectVertexConsumers();
+		MatrixStack matrices = new MatrixStack();
+		matrices.multiplyPositionMatrix(cachedWorldPositionMatrix);
+		Matrix4f previousModelViewMatrix = new Matrix4f(RenderSystem.getModelViewMatrix());
+
+		float oldYaw = activatingPlayer.getYaw();
+		float oldPitch = activatingPlayer.getPitch();
+		float oldPrevYaw = activatingPlayer.prevYaw;
+		float oldPrevPitch = activatingPlayer.prevPitch;
+		float oldBodyYaw = activatingPlayer.bodyYaw;
+		float oldPrevBodyYaw = activatingPlayer.prevBodyYaw;
+		float oldHeadYaw = activatingPlayer.headYaw;
+		float oldPrevHeadYaw = activatingPlayer.prevHeadYaw;
+		int oldAge = activatingPlayer.age;
+		float oldLastHandSwingProgress = activatingPlayer.lastHandSwingProgress;
+		float oldHandSwingProgress = activatingPlayer.handSwingProgress;
+		int oldHandSwingTicks = activatingPlayer.handSwingTicks;
+		boolean oldHandSwinging = activatingPlayer.handSwinging;
+		LimbAnimatorAccessor limbAnimator = (LimbAnimatorAccessor) activatingPlayer.limbAnimator;
+		float oldLimbPrevSpeed = limbAnimator.stasis$getPrevSpeed();
+		float oldLimbSpeed = limbAnimator.stasis$getSpeed();
+		float oldLimbPos = limbAnimator.stasis$getPos();
+		ItemStack[] oldEquipment = captureEquipment(activatingPlayer);
+
+		dispatcher.setRenderShadows(false);
+		try {
+			Framebuffer trailFramebuffer = StasisShaderManager.getTrailFramebuffer(client.gameRenderer);
+			if (trailFramebuffer == null) {
+				cachedTrailFramebufferDepthPrepared = false;
+				return;
+			}
+
+			if (cachedTrailFramebufferDepthPrepared) {
+				clearTrailFramebufferColorOnly(trailFramebuffer);
+			} else {
+				trailFramebuffer.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+				trailFramebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
+				trailFramebuffer.copyDepthFrom(client.getFramebuffer());
+				trailFramebuffer.beginWrite(false);
+			}
+
+			RenderSystem.enableDepthTest();
+			RenderSystem.depthMask(true);
+			RenderSystem.defaultBlendFunc();
+			RenderSystem.backupProjectionMatrix();
+			RenderSystem.setProjectionMatrix(new Matrix4f(cachedProjectionMatrix), cachedVertexSorter);
+			RenderSystem.getModelViewStack().pushMatrix();
+			RenderSystem.getModelViewStack().identity();
+			RenderSystem.getModelViewStack().mul(cachedModelViewMatrix);
+			RenderSystem.applyModelViewMatrix();
+			try {
+				renderSnapshots(matrices, dispatcher, activatingPlayer, limbAnimator, cameraPos, light, vertexConsumers);
+				vertexConsumers.draw();
+			} finally {
+				trailFramebuffer.endWrite();
+				client.getFramebuffer().beginWrite(false);
+				RenderSystem.getModelViewStack().popMatrix();
+				RenderSystem.getModelViewStack().identity();
+				RenderSystem.getModelViewStack().mul(previousModelViewMatrix);
+				RenderSystem.applyModelViewMatrix();
+				RenderSystem.restoreProjectionMatrix();
+			}
+		} finally {
+			dispatcher.setRenderShadows(true);
+			activatingPlayer.setYaw(oldYaw);
+			activatingPlayer.setPitch(oldPitch);
+			activatingPlayer.prevYaw = oldPrevYaw;
+			activatingPlayer.prevPitch = oldPrevPitch;
+			activatingPlayer.bodyYaw = oldBodyYaw;
+			activatingPlayer.prevBodyYaw = oldPrevBodyYaw;
+			activatingPlayer.headYaw = oldHeadYaw;
+			activatingPlayer.prevHeadYaw = oldPrevHeadYaw;
+			activatingPlayer.age = oldAge;
+			activatingPlayer.lastHandSwingProgress = oldLastHandSwingProgress;
+			activatingPlayer.handSwingProgress = oldHandSwingProgress;
+			activatingPlayer.handSwingTicks = oldHandSwingTicks;
+			activatingPlayer.handSwinging = oldHandSwinging;
+			limbAnimator.stasis$setPrevSpeed(oldLimbPrevSpeed);
+			limbAnimator.stasis$setSpeed(oldLimbSpeed);
+			limbAnimator.stasis$setPos(oldLimbPos);
+			applyEquipment(activatingPlayer, oldEquipment);
+			if (AfterimageRenderState.isActive()) {
+				AfterimageRenderState.pop();
 			}
 		}
 	}
