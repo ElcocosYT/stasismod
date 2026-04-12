@@ -30,7 +30,8 @@ public class StasisClient implements ClientModInitializer {
             PlayerTrailRenderer.onClientTick(client);
             StasisLoopSoundController.tick(client);
         });
-        WorldRenderEvents.AFTER_ENTITIES.register(PlayerTrailRenderer::render);
+        // After translucent terrain so depth matches Sodium/Iris; before weather (END_MAIN ordering).
+        WorldRenderEvents.END_MAIN.register(PlayerTrailRenderer::render);
         HudRenderCallback.EVENT.register((drawContext, renderTickCounter) -> StasisHudOverlay.render(drawContext));
     }
 }

@@ -57,7 +57,6 @@ public final class StasisShaderManager {
 			shaderEffect = loadedShader;
 			shaderWidth = width;
 			shaderHeight = height;
-			LOGGER.info("Stasis shader loaded successfully");
 		} catch (Exception exception) {
 			LOGGER.error("Failed to load stasis shader", exception);
 			shaderEffect = null;

@@ -11,6 +11,7 @@ import com.supper.stasis.StasisPhase;
 import com.supper.stasis.StasisTimings;
 import com.supper.stasis.client.StasisClientState;
 import com.supper.stasis.client.compat.EmfTrailCompat;
+import com.supper.stasis.client.compat.IrisShaderpackCompat;
 import com.supper.stasis.client.mixin.LimbAnimatorAccessor;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,8 +36,10 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
+import org.lwjgl.opengl.GL11;
 
 public final class PlayerTrailRenderer {
+	private static final boolean SODIUM_LOADED = FabricLoader.getInstance().isModLoaded("sodium");
 	private static final boolean IRIS_LOADED = FabricLoader.getInstance().isModLoaded("iris");
 	private static final int CAPTURE_INTERVAL_TICKS = 2;
 	private static final double MIN_CAPTURE_DISTANCE_SQUARED = 0.0225;
@@ -63,6 +66,7 @@ public final class PlayerTrailRenderer {
 	private static ProjectionType cachedProjectionType = null;
 	private static Matrix4f cachedModelViewMatrix = null;
 	private static CameraRenderState cachedCameraRenderState = null;
+	private static boolean cachedTrailFramebufferDepthPrepared = false;
 
 	private PlayerTrailRenderer() {
 	}
@@ -129,18 +133,25 @@ public final class PlayerTrailRenderer {
 		lastCapturedSourcePosition = currentPosition;
 	}
 
+	public static void beginRenderFrame() {
+		cachedTrailFramebufferDepthPrepared = false;
+	}
+
 	public static void render(WorldRenderContext context) {
 		MinecraftClient client = MinecraftClient.getInstance();
 		if (client.world == null) {
+			cachedTrailFramebufferDepthPrepared = false;
 			return;
 		}
 
 		if (!Stasis.CONFIG.trailsActive()) {
+			cachedTrailFramebufferDepthPrepared = false;
 			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		if (!StasisClientState.isRunning() || !StasisClientState.affectsWorld(client.world)) {
+			cachedTrailFramebufferDepthPrepared = false;
 			return;
 		}
 
@@ -151,17 +162,34 @@ public final class PlayerTrailRenderer {
 		}
 
 		if (SNAPSHOTS.isEmpty()) {
+			cachedTrailFramebufferDepthPrepared = false;
 			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		AbstractClientPlayerEntity activatingPlayer = getActivatingPlayer(client);
 		if (activatingPlayer == null) {
+			cachedTrailFramebufferDepthPrepared = false;
 			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		cacheRenderState(matrices, cameraRenderState);
+		if (shouldRenderTrailFramebufferInPostPass()) {
+			Framebuffer trailFramebuffer = StasisShaderManager.getTrailFramebuffer(context.gameRenderer());
+			cachedTrailFramebufferDepthPrepared = false;
+			if (trailFramebuffer != null) {
+				clearTrailFramebuffer(trailFramebuffer);
+				if (trailFramebuffer.useDepthAttachment
+						&& trailFramebuffer.getDepthAttachment() != null
+						&& client.getFramebuffer().useDepthAttachment
+						&& client.getFramebuffer().getDepthAttachment() != null) {
+					trailFramebuffer.copyDepthFrom(client.getFramebuffer());
+					cachedTrailFramebufferDepthPrepared = true;
+				}
+			}
+			return;
+		}
 		if (shouldDeferToPostShader()) {
 			return;
 		}
@@ -345,10 +373,142 @@ public final class PlayerTrailRenderer {
 		}
 	}
 
+	public static void captureTrailFramebufferPostWorld(Camera camera) {
+		if (!shouldRenderTrailFramebufferInPostPass()) {
+			return;
+		}
+
+		MinecraftClient client = MinecraftClient.getInstance();
+		if (client.world == null
+				|| SNAPSHOTS.isEmpty()
+				|| camera == null
+				|| cachedWorldPositionMatrix == null
+				|| cachedProjectionMatrixBuffer == null
+				|| cachedProjectionType == null
+				|| cachedModelViewMatrix == null
+				|| cachedCameraRenderState == null
+				|| cachedCameraRenderState.pos == null) {
+			return;
+		}
+
+		AbstractClientPlayerEntity activatingPlayer = getActivatingPlayer(client);
+		if (activatingPlayer == null) {
+			return;
+		}
+
+		EntityRenderManager renderManager = client.getEntityRenderDispatcher();
+		BufferBuilderStorage bufferBuilders = client.getBufferBuilders();
+		Vec3d cameraPos = cachedCameraRenderState.pos;
+
+		MatrixStack matrices = new MatrixStack();
+		matrices.multiplyPositionMatrix(cachedWorldPositionMatrix);
+		Matrix4f previousModelViewMatrix = new Matrix4f(RenderSystem.getModelViewMatrix());
+
+		float oldYaw = activatingPlayer.getYaw();
+		float oldPitch = activatingPlayer.getPitch();
+		float oldLastYaw = activatingPlayer.lastYaw;
+		float oldLastPitch = activatingPlayer.lastPitch;
+		float oldBodyYaw = activatingPlayer.bodyYaw;
+		float oldLastBodyYaw = activatingPlayer.lastBodyYaw;
+		float oldHeadYaw = activatingPlayer.headYaw;
+		float oldLastHeadYaw = activatingPlayer.lastHeadYaw;
+		int oldAge = activatingPlayer.age;
+		float oldLastHandSwingProgress = activatingPlayer.lastHandSwingProgress;
+		float oldHandSwingProgress = activatingPlayer.handSwingProgress;
+		int oldHandSwingTicks = activatingPlayer.handSwingTicks;
+		boolean oldHandSwinging = activatingPlayer.handSwinging;
+		LimbAnimatorAccessor limbAnimator = (LimbAnimatorAccessor) activatingPlayer.limbAnimator;
+		float oldLimbPrevSpeed = limbAnimator.stasis$getPrevSpeed();
+		float oldLimbSpeed = limbAnimator.stasis$getSpeed();
+		float oldLimbPos = limbAnimator.stasis$getPos();
+		ItemStack[] oldEquipment = captureEquipment(activatingPlayer);
+		GpuTextureView previousColorOverride = RenderSystem.outputColorTextureOverride;
+		GpuTextureView previousDepthOverride = RenderSystem.outputDepthTextureOverride;
+		Matrix4fStack modelViewStack = RenderSystem.getModelViewStack();
+
+		try (RenderDispatcher renderDispatcher = createTrailRenderDispatcher(client, bufferBuilders)) {
+			OrderedRenderCommandQueueImpl commandQueue = renderDispatcher.getQueue();
+			flushBufferBuilders(bufferBuilders);
+			Framebuffer trailFramebuffer = StasisShaderManager.getTrailFramebuffer(client.gameRenderer);
+			if (trailFramebuffer == null) {
+				cachedTrailFramebufferDepthPrepared = false;
+				return;
+			}
+
+			if (cachedTrailFramebufferDepthPrepared) {
+				clearTrailFramebufferColorOnly(trailFramebuffer);
+			} else {
+				clearTrailFramebuffer(trailFramebuffer);
+				if (trailFramebuffer.useDepthAttachment
+						&& trailFramebuffer.getDepthAttachment() != null
+						&& client.getFramebuffer().useDepthAttachment
+						&& client.getFramebuffer().getDepthAttachment() != null) {
+					trailFramebuffer.copyDepthFrom(client.getFramebuffer());
+				}
+			}
+
+			RenderSystem.backupProjectionMatrix();
+			RenderSystem.setProjectionMatrix(cachedProjectionMatrixBuffer, cachedProjectionType);
+			modelViewStack.pushMatrix();
+			modelViewStack.identity();
+			modelViewStack.mul(cachedModelViewMatrix);
+			RenderSystem.outputColorTextureOverride = trailFramebuffer.getColorAttachmentView();
+			RenderSystem.outputDepthTextureOverride = trailFramebuffer.useDepthAttachment
+					? trailFramebuffer.getDepthAttachmentView()
+					: null;
+			try {
+				renderSnapshots(
+						matrices,
+						renderManager,
+						renderDispatcher,
+						commandQueue,
+						bufferBuilders,
+						activatingPlayer,
+						limbAnimator,
+						cameraPos,
+						cachedCameraRenderState
+				);
+			} finally {
+				modelViewStack.popMatrix();
+				modelViewStack.identity();
+				modelViewStack.mul(previousModelViewMatrix);
+				RenderSystem.restoreProjectionMatrix();
+				RenderSystem.outputColorTextureOverride = previousColorOverride;
+				RenderSystem.outputDepthTextureOverride = previousDepthOverride;
+			}
+		} finally {
+			activatingPlayer.setYaw(oldYaw);
+			activatingPlayer.setPitch(oldPitch);
+			activatingPlayer.lastYaw = oldLastYaw;
+			activatingPlayer.lastPitch = oldLastPitch;
+			activatingPlayer.bodyYaw = oldBodyYaw;
+			activatingPlayer.lastBodyYaw = oldLastBodyYaw;
+			activatingPlayer.headYaw = oldHeadYaw;
+			activatingPlayer.lastHeadYaw = oldLastHeadYaw;
+			activatingPlayer.age = oldAge;
+			activatingPlayer.lastHandSwingProgress = oldLastHandSwingProgress;
+			activatingPlayer.handSwingProgress = oldHandSwingProgress;
+			activatingPlayer.handSwingTicks = oldHandSwingTicks;
+			activatingPlayer.handSwinging = oldHandSwinging;
+			limbAnimator.stasis$setPrevSpeed(oldLimbPrevSpeed);
+			limbAnimator.stasis$setSpeed(oldLimbSpeed);
+			limbAnimator.stasis$setPos(oldLimbPos);
+			applyEquipment(activatingPlayer, oldEquipment);
+			if (AfterimageRenderState.isActive()) {
+				AfterimageRenderState.pop();
+			}
+		}
+	}
+
 	private static boolean shouldDeferToPostShader() {
-		return IRIS_LOADED
-				&& (StasisClientState.isActive()
-				|| StasisClientState.getPhase() == StasisPhase.TRANSITION_OUT);
+		// 1.21.11 already renders correctly in the world pass with Sodium. Keeping Iris on the
+		// same path preserves depth testing, while the deferred post-shader rerender makes trails
+		// bleed through walls and blocks.
+		return false;
+	}
+
+	private static boolean shouldRenderTrailFramebufferInPostPass() {
+		return IRIS_LOADED && IrisShaderpackCompat.isShaderPackInUse();
 	}
 
 	private static void cacheRenderState(MatrixStack matrices, CameraRenderState cameraRenderState) {
@@ -380,6 +540,8 @@ public final class PlayerTrailRenderer {
 		double originalLastRenderY = activatingPlayer.lastRenderY;
 		double originalLastRenderZ = activatingPlayer.lastRenderZ;
 		flushBufferBuilders(bufferBuilders);
+		GlStateManager._enableDepthTest();
+		GlStateManager._depthFunc(GL11.GL_LEQUAL);
 		GlStateManager._depthMask(false);
 		try {
 			ItemStack[] lastAppliedEquipment = null;
@@ -494,6 +656,10 @@ public final class PlayerTrailRenderer {
 		}
 
 		commandEncoder.clearColorTexture(trailFramebuffer.getColorAttachment(), 0);
+	}
+
+	private static void clearTrailFramebufferColorOnly(Framebuffer trailFramebuffer) {
+		RenderSystem.getDevice().createCommandEncoder().clearColorTexture(trailFramebuffer.getColorAttachment(), 0);
 	}
 
 	private static RenderDispatcher createTrailRenderDispatcher(MinecraftClient client, BufferBuilderStorage bufferBuilders) {
@@ -717,6 +883,7 @@ public final class PlayerTrailRenderer {
 		cachedProjectionType = null;
 		cachedModelViewMatrix = null;
 		cachedCameraRenderState = null;
+		cachedTrailFramebufferDepthPrepared = false;
 	}
 
 	private static AbstractClientPlayerEntity getActivatingPlayer(MinecraftClient client) {

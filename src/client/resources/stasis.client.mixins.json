@@ -24,7 +24,9 @@
     "PlayerEntityRendererAfterimageMixin",
     "RenderDispatcherAccessor",
     "SoundSystemMixin",
-    "TridentEntityRendererMixin"
+    "TridentEntityRendererMixin",
+    "WorldRendererTicksAccessor",
+    "WeatherRenderingMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

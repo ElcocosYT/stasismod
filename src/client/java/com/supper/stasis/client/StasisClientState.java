@@ -27,6 +27,13 @@ public final class StasisClientState {
     private static final Map<UUID, ClientTransitionTickState> transitionTickStates = new HashMap<>();
     private static final Map<UUID, Float> activeLivingRenderDeltas = new HashMap<>();
     private static float lastVanillaRenderTickDelta = 0.0f;
+    private static double precipitationTimelineVanilla = Double.NaN;
+    private static double precipitationTimelineScaled = 0.0;
+    private static boolean precipitationFrameCaptured = false;
+    private static int precipitationFrameVanillaTicks = 0;
+    private static float precipitationFrameVanillaTickProgress = 0.0f;
+    private static int precipitationFrameBuildTicks = 0;
+    private static float precipitationFrameTickProgress = 0.0f;
 
     // For continuous per-frame interpolation during transitions (fixes the "32fps" visual)
     private static float renderProgressStart = 0.0f;
@@ -104,6 +111,24 @@ public final class StasisClientState {
         lastVanillaRenderTickDelta = StasisTimings.clamp01(tickDelta);
     }
 
+    public static void captureWeatherRenderFrame(int vanillaTicks, float vanillaTickProgress) {
+        float clampedTickProgress = StasisTimings.clamp01(vanillaTickProgress);
+        double precipitationTime = getPrecipitationTimeline(vanillaTicks + clampedTickProgress);
+        double precipitationWholeTicks = Math.floor(precipitationTime + 1.0e-6);
+        precipitationFrameCaptured = true;
+        precipitationFrameVanillaTicks = vanillaTicks;
+        precipitationFrameVanillaTickProgress = clampedTickProgress;
+        precipitationFrameBuildTicks = (int) precipitationWholeTicks;
+        precipitationFrameTickProgress = StasisTimings.clamp01((float) (precipitationTime - precipitationWholeTicks));
+    }
+
+    public static void clearWeatherRenderFrame() {
+        precipitationFrameCaptured = false;
+        precipitationFrameVanillaTicks = 0;
+        precipitationFrameVanillaTickProgress = 0.0f;
+        precipitationFrameBuildTicks = 0;
+        precipitationFrameTickProgress = 0.0f;
+    }
 
     public static void reset() {
         phase = StasisPhase.IDLE;
@@ -118,6 +143,9 @@ public final class StasisClientState {
         renderProgressEnd = 0.0f;
         renderProgressFrame = 0.0f;
         lastVanillaRenderTickDelta = 0.0f;
+        precipitationTimelineVanilla = Double.NaN;
+        precipitationTimelineScaled = 0.0;
+        clearWeatherRenderFrame();
     }
 
 
@@ -128,6 +156,84 @@ public final class StasisClientState {
 
     public static float getProgress() {
         return progress;
+    }
+
+    private static float getCurrentPrecipitationMovementScale() {
+        float scaleInput = phase == StasisPhase.TRANSITION_IN || phase == StasisPhase.TRANSITION_OUT
+                ? renderProgressFrame
+                : progress;
+        return StasisTimings.getMovementScale(phase, scaleInput);
+    }
+
+    /**
+     * Integrates precipitation time forward using the current movement scale so the result stays
+     * monotonic through transition curves and never "reverses" mid-freeze.
+     */
+    private static double getPrecipitationTimeline(double vanillaTime) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world == null || !isRunning() || !affectsWorld(client.world)) {
+            precipitationTimelineVanilla = vanillaTime;
+            precipitationTimelineScaled = vanillaTime;
+            return vanillaTime;
+        }
+        if (Double.isNaN(precipitationTimelineVanilla)) {
+            precipitationTimelineVanilla = vanillaTime;
+            precipitationTimelineScaled = vanillaTime;
+            return vanillaTime;
+        }
+        if (vanillaTime < precipitationTimelineVanilla) {
+            // WeatherRendering can sample multiple passes in the same world tick, and the
+            // particles/sound pass may observe a later tickProgress than the next weather frame.
+            // Ignore these small rewinds so a frozen rain timeline does not get snapped forward
+            // one whole tick at a time. Only hard-reset on real timeline rewinds.
+            if (precipitationTimelineVanilla - vanillaTime > 1.0) {
+                precipitationTimelineVanilla = vanillaTime;
+                precipitationTimelineScaled = vanillaTime;
+                return vanillaTime;
+            }
+            return precipitationTimelineScaled;
+        }
+        double delta = vanillaTime - precipitationTimelineVanilla;
+        if (delta > 0.0) {
+            precipitationTimelineScaled += delta * getCurrentPrecipitationMovementScale();
+            precipitationTimelineVanilla = vanillaTime;
+        }
+        return precipitationTimelineScaled;
+    }
+
+    public static int getPrecipitationBuildTicks(int vanillaTicks, float vanillaTickProgress) {
+        double precipitationTime = getPrecipitationTimeline(vanillaTicks + StasisTimings.clamp01(vanillaTickProgress));
+        return (int) Math.floor(precipitationTime + 1.0e-6);
+    }
+
+    public static int getPrecipitationBuildTicks(int vanillaTicks) {
+        int scaledTicks;
+        if (precipitationFrameCaptured) {
+            scaledTicks = precipitationFrameBuildTicks;
+        } else {
+            scaledTicks = getPrecipitationBuildTicks(vanillaTicks, lastVanillaRenderTickDelta);
+        }
+        return scaledTicks;
+    }
+
+    public static float getPrecipitationTickProgress(int vanillaTicks, float vanillaTickProgress) {
+        double precipitationTime = getPrecipitationTimeline(vanillaTicks + StasisTimings.clamp01(vanillaTickProgress));
+        double precipitationWholeTicks = Math.floor(precipitationTime + 1.0e-6);
+        return StasisTimings.clamp01((float) (precipitationTime - precipitationWholeTicks));
+    }
+
+    public static int getCapturedPrecipitationBuildTicks(int vanillaTicks) {
+        if (!precipitationFrameCaptured) {
+            captureWeatherRenderFrame(vanillaTicks, lastVanillaRenderTickDelta);
+        }
+        return precipitationFrameBuildTicks;
+    }
+
+    public static float getCapturedPrecipitationTickProgress(float vanillaTickProgress) {
+        if (!precipitationFrameCaptured) {
+            return vanillaTickProgress;
+        }
+        return precipitationFrameTickProgress;
     }
 
 
