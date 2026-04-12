@@ -17,7 +17,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ItemRenderState.LayerRenderState.class)
 public abstract class ItemLayerRenderStateAfterimageMixin {
-	private static final Identifier STASIS_ITEM_ATLAS_TEXTURE = Identifier.ofVanilla("textures/atlas/items.png");
+	// Handheld block items and many baked handheld models still source their UVs from the block/item
+	// model atlas. Using the smaller items atlas here makes afterimages sample unrelated texels,
+	// which shows up as broken 2D sprites or fully missing held blocks in the trail.
+	private static final Identifier STASIS_ITEM_ATLAS_TEXTURE = Identifier.ofVanilla("textures/atlas/blocks.png");
 
 	@Shadow
 	private RenderLayer renderLayer;
