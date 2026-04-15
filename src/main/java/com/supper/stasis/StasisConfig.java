@@ -10,12 +10,14 @@ import net.fabricmc.loader.api.FabricLoader;
 
 public record StasisConfig(
 		boolean trailsActive,
+		boolean trailsRenderCapes,
 		int trailsAmountLimit,
 		String trailsGenerationType,
 		double trailsContinuousTimings,
 		boolean trailsMidSecondsGeneration
 ) {
 	private static final boolean DEFAULT_TRAILS_ACTIVE = true;
+	private static final boolean DEFAULT_TRAILS_RENDER_CAPES = true;
 	private static final int DEFAULT_TRAILS_AMOUNT_LIMIT = 100;
 	private static final String DEFAULT_TRAILS_GENERATION_TYPE = "C";
 	private static final double DEFAULT_TRAILS_CONTINUOUS_TIMINGS = 0.05;
@@ -34,6 +36,7 @@ public record StasisConfig(
 
 		StasisConfig config = new StasisConfig(
 				readBoolean(properties, "TrailsActive", DEFAULT_TRAILS_ACTIVE),
+				readBoolean(properties, "TrailsRenderCapes", DEFAULT_TRAILS_RENDER_CAPES),
 				readInt(properties, "TrailsAmountLimit", DEFAULT_TRAILS_AMOUNT_LIMIT, 1, 1000),
 				readString(properties, "TrailsGenerationType", DEFAULT_TRAILS_GENERATION_TYPE),
 				readDouble(properties, "TrailsContinuousTimings", DEFAULT_TRAILS_CONTINUOUS_TIMINGS, 0.01, 10.0),
@@ -100,6 +103,12 @@ public record StasisConfig(
 				writer.write("# TrailsActive: when false, player trails are not generated or rendered.");
 				writer.newLine();
 				writer.write("TrailsActive=" + config.trailsActive());
+				writer.newLine();
+				writer.newLine();
+
+				writer.write("# TrailsRenderCapes: enables or disables cape rendering on player trail ghosts.");
+				writer.newLine();
+				writer.write("TrailsRenderCapes=" + config.trailsRenderCapes());
 				writer.newLine();
 				writer.newLine();
 
