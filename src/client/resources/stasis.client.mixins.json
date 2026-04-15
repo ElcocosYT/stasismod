@@ -21,6 +21,8 @@
     "LimbAnimatorAccessor",
     "LivingEntityAfterimageStateMixin",
     "LivingEntityRendererMixin",
+    "ParticleManagerMixin",
+    "ParticlePositionAccessor",
     "PostEffectPassAccessor",
     "PostEffectProcessorAccessor",
     "PlayerEntityRendererAfterimageMixin",

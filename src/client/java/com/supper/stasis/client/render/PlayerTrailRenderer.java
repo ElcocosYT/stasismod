@@ -39,6 +39,8 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
+import org.joml.Quaternionf;
+import org.lwjgl.opengl.GL11;
 
 public final class PlayerTrailRenderer {
 	private static final boolean IRIS_LOADED = FabricLoader.getInstance().isModLoaded("iris");
@@ -141,18 +143,15 @@ public final class PlayerTrailRenderer {
 	public static void render(WorldRenderContext context) {
 		MinecraftClient client = MinecraftClient.getInstance();
 		if (client.world == null) {
-			cachedTrailFramebufferDepthPrepared = false;
 			return;
 		}
 
 		if (!Stasis.CONFIG.trailsActive()) {
-			cachedTrailFramebufferDepthPrepared = false;
 			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		if (!StasisClientState.isRunning() || !StasisClientState.affectsWorld(client.world)) {
-			cachedTrailFramebufferDepthPrepared = false;
 			return;
 		}
 
@@ -163,20 +162,22 @@ public final class PlayerTrailRenderer {
 		}
 
 		if (SNAPSHOTS.isEmpty()) {
-			cachedTrailFramebufferDepthPrepared = false;
 			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		AbstractClientPlayerEntity activatingPlayer = getActivatingPlayer(client);
 		if (activatingPlayer == null) {
-			cachedTrailFramebufferDepthPrepared = false;
 			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		cacheRenderState(matrices, cameraRenderState);
 		if (shouldRenderTrailFramebufferInPostPass()) {
+			// Copy depth NOW while the vanilla framebuffer still has valid scene depth.
+			// When Iris is active, by the time captureTrailFramebufferPostWorld runs,
+			// the depth may have been cleared or replaced by Iris's pipeline.
+			// This matches the 1.21.1 pattern that worked correctly.
 			Framebuffer trailFramebuffer = StasisShaderManager.getTrailFramebuffer(context.gameRenderer());
 			cachedTrailFramebufferDepthPrepared = false;
 			if (trailFramebuffer != null) {
@@ -187,7 +188,6 @@ public final class PlayerTrailRenderer {
 			return;
 		}
 		if (shouldDeferToPostShader()) {
-			cachedTrailFramebufferDepthPrepared = false;
 			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
@@ -287,7 +287,8 @@ public final class PlayerTrailRenderer {
 
 		EntityRenderManager renderManager = client.getEntityRenderDispatcher();
 		BufferBuilderStorage bufferBuilders = client.getBufferBuilders();
-		Vec3d cameraPos = cachedCameraRenderState.pos;
+		CameraRenderState postPassCameraRenderState = createPostPassCameraRenderState(camera);
+		Vec3d cameraPos = postPassCameraRenderState.pos;
 		MatrixStack matrices = new MatrixStack();
 		matrices.multiplyPositionMatrix(cachedWorldPositionMatrix);
 		Matrix4f previousModelViewMatrix = new Matrix4f(RenderSystem.getModelViewMatrix());
@@ -317,19 +318,29 @@ public final class PlayerTrailRenderer {
 			cachedTrailFramebufferDepthPrepared = false;
 			return;
 		}
+		Framebuffer occlusionFramebuffer = getPostPassOcclusionFramebuffer(client);
 
 		GpuTextureView previousColorOverride = RenderSystem.outputColorTextureOverride;
 		GpuTextureView previousDepthOverride = RenderSystem.outputDepthTextureOverride;
+
+		// If depth was already prepared during the world render pass, only clear color.
+		// This is the key fix: depth captured during the world pass has correct scene
+		// geometry, while depth captured here (post-world) may have been modified by Iris.
 		if (cachedTrailFramebufferDepthPrepared) {
 			clearTrailFramebufferColorOnly(trailFramebuffer);
 		} else {
 			clearTrailFramebuffer(trailFramebuffer);
-			trailFramebuffer.copyDepthFrom(client.getFramebuffer());
+			trailFramebuffer.copyDepthFrom(occlusionFramebuffer);
 		}
+
 		RenderSystem.outputColorTextureOverride = trailFramebuffer.getColorAttachmentView();
 		RenderSystem.outputDepthTextureOverride = trailFramebuffer.useDepthAttachment
 				? trailFramebuffer.getDepthAttachmentView()
 				: null;
+		GlStateManager._enableDepthTest();
+		GlStateManager._depthMask(true);
+		GlStateManager._enableBlend();
+		GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO);
 
 		Matrix4fStack modelViewStack = RenderSystem.getModelViewStack();
 		RenderSystem.backupProjectionMatrix();
@@ -343,32 +354,16 @@ public final class PlayerTrailRenderer {
 			flushBufferBuilders(bufferBuilders);
 			try {
 				renderSnapshots(
-						matrices,
-						renderManager,
-						renderDispatcher,
-						commandQueue,
-						bufferBuilders,
-						activatingPlayer,
-						limbAnimator,
-						cameraPos,
-						cachedCameraRenderState
-				);
-
-				Framebuffer mainFramebuffer = client.getFramebuffer();
-				RenderSystem.outputColorTextureOverride = mainFramebuffer.getColorAttachmentView();
-				RenderSystem.outputDepthTextureOverride = mainFramebuffer.useDepthAttachment
-						? mainFramebuffer.getDepthAttachmentView()
-						: null;
-				renderSnapshots(
-						matrices,
-						renderManager,
-						renderDispatcher,
-						commandQueue,
-						bufferBuilders,
-						activatingPlayer,
-						limbAnimator,
-						cameraPos,
-						cachedCameraRenderState
+					matrices,
+					renderManager,
+					renderDispatcher,
+					commandQueue,
+					bufferBuilders,
+					activatingPlayer,
+					limbAnimator,
+					cameraPos,
+					postPassCameraRenderState,
+					true
 				);
 			} finally {
 				modelViewStack.popMatrix();
@@ -460,6 +455,10 @@ public final class PlayerTrailRenderer {
 		RenderSystem.outputDepthTextureOverride = mainFramebuffer.useDepthAttachment
 				? mainFramebuffer.getDepthAttachmentView()
 				: null;
+		GlStateManager._enableDepthTest();
+		GlStateManager._depthMask(true);
+		GlStateManager._enableBlend();
+		GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO);
 
 		Matrix4fStack modelViewStack = RenderSystem.getModelViewStack();
 		RenderSystem.backupProjectionMatrix();
@@ -531,6 +530,29 @@ public final class PlayerTrailRenderer {
 		cachedCameraRenderState = cameraRenderState;
 	}
 
+	private static Framebuffer getPostPassOcclusionFramebuffer(MinecraftClient client) {
+		Framebuffer entityFramebuffer = client.worldRenderer != null ? client.worldRenderer.getEntityFramebuffer() : null;
+		if (entityFramebuffer != null && entityFramebuffer.useDepthAttachment && entityFramebuffer.getDepthAttachment() != null) {
+			return entityFramebuffer;
+		}
+		return client.getFramebuffer();
+	}
+
+	private static CameraRenderState createPostPassCameraRenderState(Camera camera) {
+		Vec3d cameraPos = camera.getCameraPos();
+		CameraRenderState cameraRenderState = new CameraRenderState();
+		cameraRenderState.initialized = true;
+		cameraRenderState.blockPos = camera.getBlockPos();
+		cameraRenderState.pos = cameraPos;
+		cameraRenderState.entityPos = camera.getFocusedEntity() != null
+				? camera.getFocusedEntity().getEntityPos()
+				: cachedCameraRenderState.entityPos != null
+				? cachedCameraRenderState.entityPos
+				: cameraPos;
+		cameraRenderState.orientation = new Quaternionf(camera.getRotation());
+		return cameraRenderState;
+	}
+
 	private static void renderSnapshots(
 			MatrixStack matrices,
 			EntityRenderManager renderManager,
@@ -542,6 +564,32 @@ public final class PlayerTrailRenderer {
 			Vec3d cameraPos,
 			CameraRenderState cameraRenderState
 	) {
+		renderSnapshots(
+				matrices,
+				renderManager,
+				renderDispatcher,
+				commandQueue,
+				bufferBuilders,
+				activatingPlayer,
+				limbAnimator,
+				cameraPos,
+				cameraRenderState,
+				false
+		);
+	}
+
+	private static void renderSnapshots(
+			MatrixStack matrices,
+			EntityRenderManager renderManager,
+			RenderDispatcher renderDispatcher,
+			OrderedRenderCommandQueueImpl commandQueue,
+			BufferBuilderStorage bufferBuilders,
+			AbstractClientPlayerEntity activatingPlayer,
+			LimbAnimatorAccessor limbAnimator,
+			Vec3d cameraPos,
+			CameraRenderState cameraRenderState,
+			boolean writeDepth
+	) {
 		int totalSnapshots = SNAPSHOTS.size();
 		Vec3d playerPos = activatingPlayer.getEntityPos();
 		Vec3d originalRenderPosition = activatingPlayer.getEntityPos();
@@ -552,7 +600,7 @@ public final class PlayerTrailRenderer {
 		double originalLastRenderY = activatingPlayer.lastRenderY;
 		double originalLastRenderZ = activatingPlayer.lastRenderZ;
 		flushBufferBuilders(bufferBuilders);
-		GlStateManager._depthMask(false);
+		GlStateManager._depthMask(writeDepth);
 		try {
 			ItemStack[] lastAppliedEquipment = null;
 			for (int index = 0; index < totalSnapshots; index++) {
@@ -654,6 +702,12 @@ public final class PlayerTrailRenderer {
 		}
 	}
 
+	private static void clearTrailFramebufferColorOnly(Framebuffer trailFramebuffer) {
+		// Only clear color, preserving the depth that was captured during the world render pass
+		CommandEncoder commandEncoder = RenderSystem.getDevice().createCommandEncoder();
+		commandEncoder.clearColorTexture(trailFramebuffer.getColorAttachment(), 0);
+	}
+
 	private static void clearTrailFramebuffer(Framebuffer trailFramebuffer) {
 		CommandEncoder commandEncoder = RenderSystem.getDevice().createCommandEncoder();
 		if (trailFramebuffer.useDepthAttachment && trailFramebuffer.getDepthAttachment() != null) {
@@ -667,10 +721,6 @@ public final class PlayerTrailRenderer {
 		}
 
 		commandEncoder.clearColorTexture(trailFramebuffer.getColorAttachment(), 0);
-	}
-
-	private static void clearTrailFramebufferColorOnly(Framebuffer trailFramebuffer) {
-		RenderSystem.getDevice().createCommandEncoder().clearColorTexture(trailFramebuffer.getColorAttachment(), 0);
 	}
 
 	private static RenderDispatcher createTrailRenderDispatcher(MinecraftClient client, BufferBuilderStorage bufferBuilders) {

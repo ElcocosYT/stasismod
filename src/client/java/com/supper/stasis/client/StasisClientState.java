@@ -158,6 +158,15 @@ public final class StasisClientState {
         return progress;
     }
 
+    /**
+     * Returns the per-frame interpolated render progress, which smoothly
+     * interpolates between tick boundaries. Used by the particle freeze
+     * system for the same smooth sub-tick transitions as precipitation.
+     */
+    public static float getRenderProgressFrame() {
+        return renderProgressFrame;
+    }
+
     private static float getCurrentPrecipitationMovementScale() {
         float scaleInput = phase == StasisPhase.TRANSITION_IN || phase == StasisPhase.TRANSITION_OUT
                 ? renderProgressFrame

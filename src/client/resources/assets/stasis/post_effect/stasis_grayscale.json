@@ -17,6 +17,16 @@
         {
           "sampler_name": "Trail",
           "target": "trail_color"
+        },
+        {
+          "sampler_name": "InDepth",
+          "target": "minecraft:main",
+          "use_depth_buffer": true
+        },
+        {
+          "sampler_name": "TrailDepth",
+          "target": "trail_color",
+          "use_depth_buffer": true
         }
       ],
       "output": "swap",
