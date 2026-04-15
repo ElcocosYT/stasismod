@@ -134,6 +134,10 @@ public final class StasisClientState {
         return progress;
     }
 
+    public static float getRenderProgressFrame() {
+        return renderProgressFrame;
+    }
+
     private static float getCurrentPrecipitationMovementScale() {
         float scaleInput = phase == StasisPhase.TRANSITION_IN || phase == StasisPhase.TRANSITION_OUT
                 ? renderProgressFrame

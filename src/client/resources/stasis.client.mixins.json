@@ -18,6 +18,8 @@
     "LimbAnimatorAccessor",
     "LivingEntityAfterimageStateMixin",
     "LivingEntityRendererMixin",
+    "ParticleManagerMixin",
+    "ParticlePositionAccessor",
     "PlayerEntityRendererAfterimageMixin",
     "SoundSystemMixin",
     "WorldRendererTransitionMixin",

@@ -5,8 +5,8 @@ import com.mojang.blaze3d.systems.VertexSorter;
 import com.supper.stasis.Stasis;
 import com.supper.stasis.StasisTimings;
 import com.supper.stasis.client.StasisClientState;
-import com.supper.stasis.client.WeatherDebugLogger;
 import com.supper.stasis.client.compat.EmfTrailCompat;
+import com.supper.stasis.client.compat.IrisShaderpackCompat;
 import com.supper.stasis.client.mixin.LimbAnimatorAccessor;
 import java.util.ArrayList;
 import java.util.List;
@@ -137,21 +137,19 @@ public final class PlayerTrailRenderer {
 		if (!Stasis.CONFIG.trailsActive()) {
 			cachedTrailFramebufferDepthPrepared = false;
 			SNAPSHOTS.clear();
-			WeatherDebugLogger.logTrailPass("1.21.1", client, "trails_disabled", StasisClientState.isRunning(), SNAPSHOTS.isEmpty(), SODIUM_LOADED, IRIS_LOADED);
 			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		if (SNAPSHOTS.isEmpty()) {
 			cachedTrailFramebufferDepthPrepared = false;
-			WeatherDebugLogger.logTrailPass("1.21.1", client, "snapshots_empty", StasisClientState.isRunning(), true, SODIUM_LOADED, IRIS_LOADED);
 			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		if (!StasisClientState.isRunning() || !StasisClientState.affectsWorld(client.world)) {
 			cachedTrailFramebufferDepthPrepared = false;
-			WeatherDebugLogger.logTrailPass("1.21.1", client, "stasis_not_running", false, false, SODIUM_LOADED, IRIS_LOADED);
+			cachedWorldPositionMatrix = null;
 			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
@@ -159,14 +157,13 @@ public final class PlayerTrailRenderer {
 		AbstractClientPlayerEntity activatingPlayer = getActivatingPlayer(client);
 		if (activatingPlayer == null) {
 			cachedTrailFramebufferDepthPrepared = false;
-			WeatherDebugLogger.logTrailPass("1.21.1", client, "no_activating_player", true, false, SODIUM_LOADED, IRIS_LOADED);
+			cachedWorldPositionMatrix = null;
 			StasisShaderManager.clearTrailFramebuffer(context.gameRenderer());
 			return;
 		}
 
 		cacheWorldMatrix(context);
 		if (shouldRenderTrailFramebufferInPostPass()) {
-			WeatherDebugLogger.logTrailPass("1.21.1", client, "post_world_trail_capture", true, false, SODIUM_LOADED, IRIS_LOADED);
 			Framebuffer trailFramebuffer = StasisShaderManager.getTrailFramebuffer(client.gameRenderer);
 			cachedTrailFramebufferDepthPrepared = false;
 			if (trailFramebuffer != null) {
@@ -590,6 +587,7 @@ public final class PlayerTrailRenderer {
 		if (client.world == null
 				|| SNAPSHOTS.isEmpty()
 				|| camera == null
+				|| !StasisClientState.isRunning()
 				|| cachedWorldPositionMatrix == null
 				|| cachedProjectionMatrix == null
 				|| cachedModelViewMatrix == null
@@ -716,7 +714,12 @@ public final class PlayerTrailRenderer {
 	}
 
 	private static boolean shouldDeferToPostShader() {
-		return false;
+		// During TRANSITION_OUT with shaders, render trails directly to the main
+		// framebuffer instead of through trail_color. This prevents the stasis shader
+		// from applying a global fade to all trails as its progress decreases.
+		return IRIS_LOADED
+				&& IrisShaderpackCompat.isShaderPackInUse()
+				&& StasisClientState.getPhase() == com.supper.stasis.StasisPhase.TRANSITION_OUT;
 	}
 
 	private static boolean shouldRenderTrailFramebufferInPostPass() {
@@ -724,6 +727,10 @@ public final class PlayerTrailRenderer {
 		// during the world pass can leak state into vanilla weather rendering. Capturing the trail
 		// mask immediately before the stasis composite keeps cyan intact without interfering with
 		// rain streak rendering.
+		// During TRANSITION_OUT with Iris, trails are deferred to renderPostShader() instead.
+		if (shouldDeferToPostShader()) {
+			return false;
+		}
 		return SODIUM_LOADED || IRIS_LOADED;
 	}
 
