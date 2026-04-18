@@ -14,6 +14,7 @@
     "EntityAfterimageStateMixin",
     "EntityRenderDispatcherMixin",
     "GameRendererMixin",
+    "ItemEntityAgeAccessor",
     "ItemRendererAfterimageMixin",
     "LimbAnimatorAccessor",
     "LivingEntityAfterimageStateMixin",
@@ -23,6 +24,7 @@
     "PlayerEntityRendererAfterimageMixin",
     "PostEffectProcessorAccessor",
     "SoundSystemMixin",
+    "SpriteAtlasTextureMixin",
     "WorldRendererTransitionMixin",
     "WorldRendererWeatherMixin"
 	],
