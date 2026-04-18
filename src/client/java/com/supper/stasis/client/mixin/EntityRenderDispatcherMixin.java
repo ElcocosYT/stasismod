@@ -1,6 +1,7 @@
 package com.supper.stasis.client.mixin;
 
 import com.supper.stasis.client.StasisClientState;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.world.ClientWorld;
@@ -48,8 +49,10 @@ public class EntityRenderDispatcherMixin {
 			return tickDelta;
 		}
 
-		// Non-living entities are already transition-scaled in world tick state.
-		if (StasisClientState.isTransitioning()) {
+		// Non-living entities (projectiles, etc.) are already transition-scaled in
+		// the world tick. Items are the exception: their bobbing animation is driven
+		// by (age + tickDelta), so tickDelta must be scaled for smooth slowdown.
+		if (!(entity instanceof ItemEntity) && StasisClientState.isTransitioning()) {
 			return tickDelta;
 		}
 

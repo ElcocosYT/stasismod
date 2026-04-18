@@ -3,6 +3,7 @@ package com.supper.stasis.client;
 import com.supper.stasis.StasisTimings;
 import com.supper.stasis.StasisPhase;
 import com.supper.stasis.client.mixin.LimbAnimatorAccessor;
+import com.supper.stasis.client.render.ShockwaveRenderer;
 import com.supper.stasis.network.StasisSyncPayload;
 import java.util.HashMap;
 import java.util.Map;
@@ -11,6 +12,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.util.math.MathHelper;
@@ -26,6 +28,7 @@ public final class StasisClientState {
     private static final Map<UUID, ClientFrozenEntityState> frozenEntityStates = new HashMap<>();
     private static final Map<UUID, ClientTransitionTickState> transitionTickStates = new HashMap<>();
     private static final Map<UUID, Float> activeLivingRenderDeltas = new HashMap<>();
+    private static final Map<UUID, Float> itemVirtualAges = new HashMap<>();
     private static float lastVanillaRenderTickDelta = 0.0f;
     private static double precipitationTimelineVanilla = Double.NaN;
     private static double precipitationTimelineScaled = 0.0;
@@ -64,6 +67,7 @@ public final class StasisClientState {
             }
             frozenEntityStates.clear();
             transitionTickStates.clear();
+            itemVirtualAges.clear();
             if (preservedNonLivingStates != null) {
                 frozenEntityStates.putAll(preservedNonLivingStates);
             }
@@ -88,6 +92,12 @@ public final class StasisClientState {
         activatingPlayerUUID = payload.activatingPlayerUUID();
         activeTicksRemaining = payload.activeTicksRemaining();
         warningTicks = payload.warningTicks();
+
+        // Trigger shockwave effect when entering TRANSITION_IN
+        if (oldPhase == StasisPhase.IDLE && newPhase == StasisPhase.TRANSITION_IN) {
+            ShockwaveRenderer.trigger();
+        }
+        ShockwaveRenderer.tick();
     }
 
 
@@ -116,6 +126,7 @@ public final class StasisClientState {
         frozenEntityStates.clear();
         transitionTickStates.clear();
         activeLivingRenderDeltas.clear();
+        itemVirtualAges.clear();
         renderProgressStart = 0.0f;
         renderProgressEnd = 0.0f;
         renderProgressFrame = 0.0f;
@@ -463,7 +474,7 @@ public final class StasisClientState {
         if (transitionScale <= 0.0001f) {
             Vec3d frozenVelocity = hasMeaningfulVelocity(entity.getVelocity()) ? entity.getVelocity() : state.velocity;
             entity.setPosition(state.position);
-            entity.setVelocity(entity instanceof ProjectileEntity ? frozenVelocity : Vec3d.ZERO);
+            entity.setVelocity((entity instanceof ProjectileEntity || entity instanceof net.minecraft.entity.ItemEntity) ? frozenVelocity : Vec3d.ZERO);
             entity.setYaw(state.yaw);
             entity.prevYaw = state.yaw;
             entity.setPitch(state.pitch);
@@ -522,7 +533,7 @@ public final class StasisClientState {
         // Re-applying the stored resume velocity every tick makes them "sag" and
         // snap back upward between frames instead of following one smooth path.
         if (phase != StasisPhase.TRANSITION_OUT || isPrivilegedEntity(entity)
-                || entity instanceof LivingEntity || entity instanceof ProjectileEntity || entity.isRemoved()) {
+                || entity instanceof LivingEntity || entity instanceof ProjectileEntity || entity instanceof net.minecraft.entity.ItemEntity || entity.isRemoved()) {
             return;
         }
         ClientFrozenEntityState state = frozenEntityStates.get(entity.getUuid());
@@ -574,6 +585,10 @@ public final class StasisClientState {
         }
 
         if (phase.isTransition()) {
+            // Items use virtual age system: return frac(virtualAge) + movementScale * tickDelta
+            if (entity instanceof ItemEntity) {
+                return getItemEntityRenderTickDelta(entity, vanillaTickDelta);
+            }
             return vanillaTickDelta * getMovementMultiplierFromRenderProgress();
         }
 
@@ -587,6 +602,37 @@ public final class StasisClientState {
      */
     private static float getMovementMultiplierFromRenderProgress() {
         return StasisTimings.getMovementScale(phase, renderProgressFrame);
+    }
+
+
+    /**
+     * Advances the virtual age for an ItemEntity during transitions.
+     * Called from the tick RETURN inject after the tick has run.
+     * Returns the new virtual age so the caller can set itemAge = floor(virtualAge).
+     */
+    public static float advanceItemVirtualAge(Entity entity, int preTickAge) {
+        UUID uuid = entity.getUuid();
+        float movementScale = StasisTimings.clamp01(getMovementMultiplier(entity));
+        float current = itemVirtualAges.computeIfAbsent(uuid, k -> (float) preTickAge);
+        current += movementScale;
+        itemVirtualAges.put(uuid, current);
+        return current;
+    }
+
+
+    /**
+     * Returns the render tickDelta for ItemEntity during transitions.
+     * Uses the fractional part of the virtual age plus a smooth per-frame offset
+     * so the bobbing animation maintains full frame rate but visually slows.
+     */
+    private static float getItemEntityRenderTickDelta(Entity entity, float vanillaTickDelta) {
+        Float virtualAge = itemVirtualAges.get(entity.getUuid());
+        if (virtualAge == null) {
+            return vanillaTickDelta * getMovementMultiplierFromRenderProgress();
+        }
+        float frac = virtualAge - (float) Math.floor(virtualAge);
+        float movementScale = getMovementMultiplierFromRenderProgress();
+        return frac + movementScale * vanillaTickDelta;
     }
 
     private static Map<UUID, ClientFrozenEntityState> preserveNonLivingFrozenStates() {
