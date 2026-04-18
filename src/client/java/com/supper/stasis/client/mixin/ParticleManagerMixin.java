@@ -110,6 +110,10 @@ public class ParticleManagerMixin {
 		stasis$currentMovementScale = 1.0f;
 	}
 
+	/**
+	 * Sets prevPos = pos for every particle so that rendering interpolation
+	 * produces a constant position regardless of tickDelta (perfect freeze).
+	 */
 	@Unique
 	private void stasis$syncAllParticlePositions() {
 		for (ParticleRenderer<?> renderer : this.particles.values()) {
@@ -120,5 +124,20 @@ public class ParticleManagerMixin {
 				acc.stasis$setPrevPosZ(acc.stasis$getZ());
 			}
 		}
+	}
+
+	@org.spongepowered.asm.mixin.injection.ModifyVariable(
+			method = "renderParticles*",
+			at = @At("HEAD"),
+			argsOnly = true,
+			ordinal = 0
+	)
+	private float stasis$freezeParticleRenderTickDelta(float tickDelta) {
+		// Zeroing out the sub-tick interpolation completely stops particle sizes (e.g. fire/explosions)
+		// and rotations from jittering forward and backward when the game is completely paused.
+		if (StasisClientState.getPhase() == StasisPhase.ACTIVE) {
+			return 0.0f;
+		}
+		return tickDelta;
 	}
 }

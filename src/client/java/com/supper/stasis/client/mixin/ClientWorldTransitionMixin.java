@@ -4,14 +4,27 @@ import com.supper.stasis.client.StasisClientState;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ClientWorld.class)
 public class ClientWorldTransitionMixin {
+
+    @Unique
+    private int stasis$savedItemAge = -1;
+
+    @Inject(method = "tickTime", at = @At("HEAD"), cancellable = true)
+    private void stasis$freezeTickTime(CallbackInfo ci) {
+        ClientWorld world = (ClientWorld) (Object) this;
+        if (StasisClientState.isActive() && StasisClientState.affectsWorld(world)) {
+            ci.cancel();
+        }
+    }
 
     @Inject(method = "tickEntity", at = @At("HEAD"), cancellable = true)
     private void stasis$freezeClientEntityTick(Entity entity, CallbackInfo ci) {
@@ -34,6 +47,14 @@ public class ClientWorldTransitionMixin {
             if (StasisClientState.isRunning()) {
                 return;
             }
+        }
+
+        // Dropped items: save pre-tick itemAge so we can undo the age increment
+        // in the RETURN inject and replace it with a smooth virtual age.
+        if (entity instanceof ItemEntity itemEntity
+                && StasisClientState.isTransitioning()
+                && !StasisClientState.isPrivilegedEntity(entity)) {
+            stasis$savedItemAge = ((ItemEntityAgeAccessor) itemEntity).stasis$getItemAge();
         }
 
         if (StasisClientState.isTransitioning()) {
@@ -66,6 +87,16 @@ public class ClientWorldTransitionMixin {
         }
         if (StasisClientState.isTransitioning() && !(entity instanceof LivingEntity)) {
             StasisClientState.applyTransitionTickState(entity);
+        }
+        if (entity instanceof ItemEntity itemEntity
+                && StasisClientState.isTransitioning()
+                && !StasisClientState.isPrivilegedEntity(entity)
+                && stasis$savedItemAge >= 0) {
+            ItemEntityAgeAccessor accessor = (ItemEntityAgeAccessor) itemEntity;
+            accessor.stasis$setItemAge(stasis$savedItemAge);
+            float virtualAge = StasisClientState.advanceItemVirtualAge(entity, stasis$savedItemAge);
+            accessor.stasis$setItemAge((int) virtualAge);
+            stasis$savedItemAge = -1;
         }
     }
 

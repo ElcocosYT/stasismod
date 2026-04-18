@@ -16,6 +16,7 @@
     "EntityRenderDispatcherMixin",
     "GameRendererMixin",
     "GameRendererPoolAccessor",
+    "ItemEntityAgeAccessor",
     "ItemLayerRenderStateAfterimageMixin",
     "ItemRendererAfterimageMixin",
     "LimbAnimatorAccessor",
@@ -28,6 +29,7 @@
     "PlayerEntityRendererAfterimageMixin",
     "RenderDispatcherAccessor",
     "SoundSystemMixin",
+    "SpriteAtlasTextureMixin",
     "TridentEntityRendererMixin",
     "WorldRendererTicksAccessor",
     "WeatherRenderingMixin"

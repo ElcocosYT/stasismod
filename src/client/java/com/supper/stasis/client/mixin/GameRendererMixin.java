@@ -3,6 +3,7 @@ package com.supper.stasis.client.mixin;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.supper.stasis.client.StasisClientState;
 import com.supper.stasis.client.render.PlayerTrailRenderer;
+import com.supper.stasis.client.render.ShockwaveRenderer;
 import com.supper.stasis.client.render.StasisShaderManager;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.RenderTickCounter;
@@ -45,6 +46,7 @@ public class GameRendererMixin {
 		GameRenderer renderer = (GameRenderer) (Object) this;
 		PlayerTrailRenderer.captureTrailFramebufferPostWorld(renderer.getCamera());
 		stasis$renderShader(renderer);
+		ShockwaveRenderer.render(renderer);
 		PlayerTrailRenderer.renderPostShader(renderer.getCamera());
 		stasis$restoreHandRenderState(renderer);
 		this.stasis$shaderAppliedThisFrame = true;
@@ -59,6 +61,7 @@ public class GameRendererMixin {
 		GameRenderer renderer = (GameRenderer) (Object) this;
 		PlayerTrailRenderer.captureTrailFramebufferPostWorld(renderer.getCamera());
 		stasis$renderShader(renderer);
+		ShockwaveRenderer.render(renderer);
 		PlayerTrailRenderer.renderPostShader(renderer.getCamera());
 		stasis$restoreHandRenderState(renderer);
 	}

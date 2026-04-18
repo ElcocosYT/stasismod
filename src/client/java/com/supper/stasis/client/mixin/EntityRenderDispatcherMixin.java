@@ -4,6 +4,7 @@ import com.supper.stasis.client.StasisClientState;
 import net.minecraft.client.render.entity.EntityRenderManager;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -25,10 +26,10 @@ public class EntityRenderDispatcherMixin {
 			return tickDelta;
 		}
 
-		// Non-living entities already have their position and velocity transition-scaled in
-		// the world tick. Re-scaling render tickDelta here makes projectiles visually sag and
-		// snap between sub-steps instead of following the original smooth bullet-time arc.
-		if (!(entity instanceof LivingEntity) && StasisClientState.isTransitioning()) {
+		// Non-living entities (projectiles, items, etc.) are already transition-scaled in
+		// their physical tick updates, so they MUST use the unscaled tickDelta to
+		// correctly interpolate between the scaled physical steps.
+		if (!(entity instanceof LivingEntity)) {
 			return tickDelta;
 		}
 
