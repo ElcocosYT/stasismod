@@ -105,7 +105,22 @@ jobs:
           import sys
 
           raw = json.loads(os.environ["GAME_VERSIONS_JSON"])
-          versions = raw.get("data", []) if isinstance(raw, dict) else raw
+          
+          def collect_versions(node, found):
+              if isinstance(node, dict):
+                  label = node.get("name") or node.get("versionString")
+                  version_id = node.get("id")
+                  if label is not None and version_id is not None:
+                      found[str(label)] = str(version_id)
+
+                  for value in node.values():
+                      collect_versions(value, found)
+              elif isinstance(node, list):
+                  for item in node:
+                      collect_versions(item, found)
+
+          versions = {}
+          collect_versions(raw, versions)
           wanted = [
               os.environ["CURSEFORGE_MINECRAFT_VERSION"],
               "Fabric",
@@ -117,7 +132,7 @@ jobs:
           resolved_ids = []
           missing = []
           for name in wanted:
-              match = next((str(version.get("id")) for version in versions if str(version.get("name", "")) == name), None)
+              match = versions.get(name)
               if match is None:
                   missing.append(name)
               else:
