@@ -394,7 +394,8 @@ public final class PlayerTrailRenderer {
 						snapshot.equippedStacks,
 						snapshot.usingItem,
 						snapshot.activeHand,
-						snapshot.itemUseTimeLeft
+						snapshot.itemUseTimeLeft,
+						snapshot.renderOnFire
 				);
 				try {
 					EmfTrailCompat.runWithVanillaPlayerModel(activatingPlayer, () ->
@@ -459,7 +460,8 @@ public final class PlayerTrailRenderer {
 				captureEquipmentSnapshot(player),
 				player.isUsingItem(),
 				player.getActiveHand(),
-				player.getItemUseTimeLeft()
+				player.getItemUseTimeLeft(),
+				player.isOnFire()
 		));
 	}
 
@@ -790,7 +792,8 @@ public final class PlayerTrailRenderer {
 			ItemStack[] equippedStacks,
 			boolean usingItem,
 			Hand activeHand,
-			int itemUseTimeLeft
+			int itemUseTimeLeft,
+			boolean renderOnFire
 	) {
 	}
 

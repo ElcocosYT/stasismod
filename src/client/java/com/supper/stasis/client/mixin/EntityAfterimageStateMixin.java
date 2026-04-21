@@ -33,4 +33,12 @@ public class EntityAfterimageStateMixin {
 			cir.setReturnValue(sneakingPose);
 		}
 	}
+
+	@Inject(method = "doesRenderOnFire", at = @At("HEAD"), cancellable = true)
+	private void stasis$useAfterimageRenderOnFire(CallbackInfoReturnable<Boolean> cir) {
+		Boolean renderOnFire = AfterimageRenderState.getRenderOnFireOverride();
+		if (renderOnFire != null) {
+			cir.setReturnValue(renderOnFire);
+		}
+	}
 }
