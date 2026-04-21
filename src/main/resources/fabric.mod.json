@@ -18,6 +18,12 @@
     "issues": "https://github.com/ElcocosYT/stasismod/issues",
     "sources": "https://github.com/ElcocosYT/stasismod"
   },
+  "custom": {
+    "mc-publish": {
+      "modrinth": "jisLagDi",
+      "curseforge": 1509815
+    }
+  },
   "license": "All Rights Reserved",
   "icon": "assets/stasis/icon.png",
   "environment": "*",
