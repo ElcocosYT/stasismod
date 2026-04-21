@@ -28,6 +28,20 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
+      - name: Read release metadata
+        id: release_meta
+        shell: bash
+        run: |
+          MOD_VERSION="$(grep '^mod_version=' gradle.properties | cut -d= -f2-)"
+          if [ -z "${MOD_VERSION}" ]; then
+            echo "Could not read mod_version from gradle.properties" >&2
+            exit 1
+          fi
+
+          {
+            echo "mod_version=${MOD_VERSION}"
+          } >> "${GITHUB_OUTPUT}"
+
       - name: Build
         run: ./gradlew build --no-daemon --console=plain
 
@@ -58,9 +72,9 @@ jobs:
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-generate-changelog: false
-          version: ${{ github.ref_name }}
+          version: ${{ steps.release_meta.outputs.mod_version }}
           version-type: release
-          name: Stasis Paradox for Minecraft 1.21.1 (${{ github.ref_name }})
+          name: Stasis Paradox ${{ steps.release_meta.outputs.mod_version }}
           changelog: ${{ steps.tag_changelog.outputs.changelog }}
           loaders: |
             fabric
@@ -70,4 +84,3 @@ jobs:
             21
           files: |
             build/libs/!(*-@(dev|sources|javadoc)).jar
-            build/libs/*-@(dev|sources|javadoc).jar
