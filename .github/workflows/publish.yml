@@ -3,10 +3,10 @@ name: Publish Stasis Paradox 1.20.1
 on:
   push:
     tags:
-      - 'mc1.20.1-v*'
+      - 'v*-1.20.1'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   publish:
@@ -70,16 +70,19 @@ jobs:
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           curseforge-id: 1509815
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          github-generate-changelog: false
           version: ${{ steps.release_meta.outputs.mod_version }}
           version-type: release
-          name: Stasis Paradox ${{ steps.release_meta.outputs.mod_version }}
+          name: ""
+          modrinth-name: Stasis Paradox ${{ steps.release_meta.outputs.mod_version }}
           changelog: ${{ steps.tag_changelog.outputs.changelog }}
           loaders: |
             fabric
           game-versions: |
             1.20.1
+          curseforge-game-versions: |
+            1.20.1
+            Client
+            Server
           java: |
             17
           files: |
