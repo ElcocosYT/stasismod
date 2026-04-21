@@ -31,6 +31,28 @@ jobs:
       - name: Build
         run: ./gradlew build --no-daemon --console=plain
 
+      - name: Read tag changelog
+        id: tag_changelog
+        shell: bash
+        run: |
+          TAG_TYPE="$(git cat-file -t "${GITHUB_REF_NAME}")"
+          if [ "${TAG_TYPE}" != "tag" ]; then
+            echo "Expected an annotated tag for ${GITHUB_REF_NAME}, got ${TAG_TYPE}." >&2
+            exit 1
+          fi
+
+          TAG_CHANGELOG="$(git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents)')"
+          if [ -z "${TAG_CHANGELOG}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} is missing a changelog body." >&2
+            exit 1
+          fi
+
+          {
+            echo 'changelog<<EOF'
+            echo "${TAG_CHANGELOG}"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
       - name: Publish
         uses: Kir-Antipov/mc-publish@v3.3
         with:
@@ -39,13 +61,11 @@ jobs:
           curseforge-id: 1509815
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          github-generate-changelog: true
+          github-generate-changelog: false
           version: ${{ github.ref_name }}
           version-type: release
           name: Stasis Paradox for Minecraft 1.20.1 (${{ github.ref_name }})
-          changelog: |
-            Automated release for ${{ github.ref_name }}.
-            See the GitHub release and commit history for full details.
+          changelog: ${{ steps.tag_changelog.outputs.changelog }}
           loaders: |
             fabric
           game-versions: |
