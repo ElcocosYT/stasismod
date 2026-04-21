@@ -1,0 +1,57 @@
+name: Publish Stasis Paradox 1.21.11
+
+on:
+  push:
+    tags:
+      - 'mc1.21.11-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Build
+        run: ./gradlew build --no-daemon --console=plain
+
+      - name: Publish
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: jisLagDi
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          curseforge-id: 1509815
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-generate-changelog: true
+          version: ${{ github.ref_name }}
+          version-type: release
+          name: Stasis Paradox for Minecraft 1.21.11 (${{ github.ref_name }})
+          changelog: |
+            Automated release for ${{ github.ref_name }}.
+            See the GitHub release and commit history for full details.
+          loaders: |
+            fabric
+          game-versions: |
+            1.21.11
+          java: |
+            21
+          files: |
+            build/libs/!(*-@(dev|sources|javadoc)).jar
+            build/libs/*-@(dev|sources|javadoc).jar
