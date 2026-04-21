@@ -68,6 +68,8 @@ jobs:
         with:
           modrinth-id: jisLagDi
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          curseforge-id: 1509815
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           version: ${{ steps.release_meta.outputs.mod_version }}
           version-type: release
           name: ""
@@ -81,109 +83,3 @@ jobs:
             21
           files: |
             build/libs/!(*-@(dev|sources|javadoc)).jar
-
-      - name: Resolve CurseForge metadata
-        id: curseforge_meta
-        shell: bash
-        env:
-          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
-          CURSEFORGE_MINECRAFT_VERSION: 1.21.1
-          CURSEFORGE_JAVA_VERSION: Java 21
-        run: |
-          FILE_PATH="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' ! -name '*-dev.jar' | head -n 1)"
-          if [ -z "${FILE_PATH}" ]; then
-            echo "Could not find the primary jar in build/libs" >&2
-            exit 1
-          fi
-
-          export FILE_PATH
-          export GAME_VERSIONS_JSON="$(curl -fsSL -H "X-Api-Token: ${CURSEFORGE_TOKEN}" https://www.curseforge.com/api/game/versions)"
-
-          python - <<'PY'
-          import json
-          import os
-          import sys
-
-          raw = json.loads(os.environ["GAME_VERSIONS_JSON"])
-          
-          def collect_versions(node, found):
-              if isinstance(node, dict):
-                  label = node.get("name") or node.get("versionString")
-                  version_id = node.get("id")
-                  if label is not None and version_id is not None:
-                      found[str(label)] = str(version_id)
-
-                  for value in node.values():
-                      collect_versions(value, found)
-              elif isinstance(node, list):
-                  for item in node:
-                      collect_versions(item, found)
-
-          versions = {}
-          collect_versions(raw, versions)
-          wanted = [
-              os.environ["CURSEFORGE_MINECRAFT_VERSION"],
-              "Fabric",
-              os.environ["CURSEFORGE_JAVA_VERSION"],
-              "Client",
-              "Server",
-          ]
-
-          resolved_ids = []
-          missing = []
-          for name in wanted:
-              match = versions.get(name)
-              if match is None:
-                  missing.append(name)
-              else:
-                  resolved_ids.append(match)
-
-          if missing:
-              print("Missing CurseForge game version entries: " + ", ".join(missing), file=sys.stderr)
-              sys.exit(1)
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write(f"file_path={os.environ['FILE_PATH']}\n")
-              output.write(f"game_version_ids={','.join(resolved_ids)}\n")
-          PY
-
-      - name: Publish to CurseForge
-        shell: bash
-        env:
-          CURSEFORGE_PROJECT_ID: 1509815
-          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
-          CHANGELOG: ${{ steps.tag_changelog.outputs.changelog }}
-          FILE_PATH: ${{ steps.curseforge_meta.outputs.file_path }}
-          GAME_VERSION_IDS: ${{ steps.curseforge_meta.outputs.game_version_ids }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-
-          metadata = {
-              "changelog": os.environ["CHANGELOG"],
-              "changelogType": "markdown",
-              "gameVersions": [int(value) for value in os.environ["GAME_VERSION_IDS"].split(",") if value],
-              "releaseType": "release",
-          }
-
-          with open("curseforge-metadata.json", "w", encoding="utf-8") as metadata_file:
-              json.dump(metadata, metadata_file, ensure_ascii=False)
-          PY
-
-          for attempt in 1 2 3; do
-            if curl -fsSL \
-              -H "X-Api-Token: ${CURSEFORGE_TOKEN}" \
-              -F "metadata=<curseforge-metadata.json;type=application/json" \
-              -F "file=@${FILE_PATH}" \
-              "https://www.curseforge.com/api/projects/${CURSEFORGE_PROJECT_ID}/upload-file"; then
-              exit 0
-            fi
-
-            if [ "${attempt}" -eq 3 ]; then
-              echo "CurseForge upload failed after ${attempt} attempts." >&2
-              exit 1
-            fi
-
-            sleep 10
-          done
