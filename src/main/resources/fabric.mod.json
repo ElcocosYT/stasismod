@@ -1,54 +1,56 @@
 {
-  "schemaVersion": 1,
-  "id": "stasis",
-  "version": "1.1.0",
-  "name": "Stasis Paradox",
-  "description": "A Minecraft mod that implements a balanced time-stop mechanic with the Paradox, use at your own risk.",
-  "authors": [
-    {
-      "name": "SupperDupper",
-      "contact": {
-        "github": "https://github.com/ElcocosYT"
-      }
-    }
-  ],
-  "contributors": [],
-  "contact": {
-    "homepage": "https://modrinth.com/mod/stasis-paradox",
-    "issues": "https://github.com/ElcocosYT/stasismod/issues",
-    "sources": "https://github.com/ElcocosYT/stasismod"
-  },
-  "custom": {
-    "mc-publish": {
-      "modrinth": "jisLagDi",
-      "curseforge": 1509815
-    }
-  },
-  "license": "All Rights Reserved",
-  "icon": "assets/stasis/icon.png",
-  "environment": "*",
-  "entrypoints": {
-    "main": [
-      "com.supper.stasis.Stasis"
-    ],
-    "client": [
-      "com.supper.stasis.client.StasisClient"
-    ]
-  },
-  "mixins": [
-    "stasis.mixins.json",
-    {
-      "config": "stasis.client.mixins.json",
-      "environment": "client"
-    }
-  ],
-  "depends": {
-    "fabricloader": ">=0.16.3",
-    "minecraft": "~1.21.1",
-    "java": ">=21",
-    "fabric-api": "*"
-  },
-  "suggests": {
-    "entity_model_features": "*"
-  }
+    "schemaVersion":  1,
+    "id":  "stasis",
+    "version":  "1.1.1",
+    "name":  "Stasis Paradox",
+    "description":  "A Minecraft mod that implements a balanced time-stop mechanic with the Paradox, use at your own risk.",
+    "authors":  [
+                    {
+                        "name":  "SupperDupper",
+                        "contact":  {
+                                        "github":  "https://github.com/ElcocosYT"
+                                    }
+                    }
+                ],
+    "contributors":  [
+
+                     ],
+    "contact":  {
+                    "homepage":  "https://modrinth.com/mod/stasis-paradox",
+                    "issues":  "https://github.com/ElcocosYT/stasismod/issues",
+                    "sources":  "https://github.com/ElcocosYT/stasismod"
+                },
+    "custom":  {
+                   "mc-publish":  {
+                                      "modrinth":  "jisLagDi",
+                                      "curseforge":  1509815
+                                  }
+               },
+    "license":  "All Rights Reserved",
+    "icon":  "assets/stasis/icon.png",
+    "environment":  "*",
+    "entrypoints":  {
+                        "main":  [
+                                     "com.supper.stasis.Stasis"
+                                 ],
+                        "client":  [
+                                       "com.supper.stasis.client.StasisClient"
+                                   ]
+                    },
+    "mixins":  [
+                   "stasis.mixins.json",
+                   {
+                       "config":  "stasis.client.mixins.json",
+                       "environment":  "client"
+                   }
+               ],
+    "depends":  {
+                    "fabricloader":  "\u003e=0.16.3",
+                    "minecraft":  "~1.21.1",
+                    "java":  "\u003e=21",
+                    "fabric-api":  "*"
+                },
+    "suggests":  {
+                     "entity_model_features":  "*"
+                 }
 }
