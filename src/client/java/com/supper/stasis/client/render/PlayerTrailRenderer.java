@@ -44,7 +44,6 @@ import org.lwjgl.opengl.GL11;
 
 public final class PlayerTrailRenderer {
 	private static final boolean IRIS_LOADED = FabricLoader.getInstance().isModLoaded("iris");
-	private static final int CAPTURE_INTERVAL_TICKS = 2;
 	private static final double MIN_CAPTURE_DISTANCE_SQUARED = 0.0225;
 	private static final double INTERPOLATION_DISTANCE = 0.9;
 	private static final double MIN_CAMERA_DISTANCE_SQUARED = 0.09;
@@ -57,7 +56,6 @@ public final class PlayerTrailRenderer {
 	private static final float TRAIL_ALPHA_MAX = 0.34f;
 	private static final float TRAIL_DENSITY_REFERENCE = 28.0f;
 	private static final float TRAIL_DENSITY_MIN_SCALE = 0.42f;
-	private static final int MAX_SNAPSHOTS = 190;
 	private static final List<TrailSnapshot> SNAPSHOTS = new ArrayList<>();
 
 	private static UUID trackedPlayerUuid = null;
@@ -107,11 +105,9 @@ public final class PlayerTrailRenderer {
 			return;
 		}
 
-		captureCooldown++;
-		if (captureCooldown < CAPTURE_INTERVAL_TICKS) {
+		if (!shouldCaptureThisTick()) {
 			return;
 		}
-		captureCooldown = 0;
 
 		Vec3d currentPosition = activatingPlayer.getEntityPos();
 		if (lastCapturedSourcePosition == null) {
@@ -127,7 +123,7 @@ public final class PlayerTrailRenderer {
 		}
 
 		double movementLength = Math.sqrt(movementLengthSquared);
-		if (movementLength > INTERPOLATION_DISTANCE) {
+		if (shouldInterpolateTrailMovement() && movementLength > INTERPOLATION_DISTANCE) {
 			Vec3d midpoint = lastCapturedSourcePosition.lerp(currentPosition, 0.5);
 			addSnapshot(midpoint.add(0.0, -TRAIL_VERTICAL_OFFSET, 0.0), activatingPlayer);
 		}
@@ -751,7 +747,7 @@ public final class PlayerTrailRenderer {
 		EntityPose capturedPose = player.getPose();
 		boolean capturedSneaking = player.isSneaking();
 
-		if (SNAPSHOTS.size() >= MAX_SNAPSHOTS) {
+		if (SNAPSHOTS.size() >= Stasis.CONFIG.maxSnapshots()) {
 			SNAPSHOTS.remove(0);
 		}
 
@@ -825,6 +821,20 @@ public final class PlayerTrailRenderer {
 	private static float smootherstep(float value) {
 		float t = Math.max(0.0f, Math.min(1.0f, value));
 		return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+	}
+
+	private static boolean shouldCaptureThisTick() {
+		int captureIntervalTicks = Stasis.CONFIG.captureIntervalTicks();
+		captureCooldown++;
+		if (captureCooldown < captureIntervalTicks) {
+			return false;
+		}
+		captureCooldown = 0;
+		return true;
+	}
+
+	private static boolean shouldInterpolateTrailMovement() {
+		return Stasis.CONFIG.shouldInterpolateTrailMovement();
 	}
 
 	private static ItemStack[] captureEquipment(AbstractClientPlayerEntity player) {
