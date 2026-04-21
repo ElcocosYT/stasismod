@@ -646,6 +646,7 @@ public final class PlayerTrailRenderer {
 						snapshot.usingItem,
 						snapshot.activeHand,
 						snapshot.itemUseTimeLeft,
+						snapshot.renderOnFire,
 						snapshot.itemUseTime
 				);
 				try {
@@ -775,6 +776,7 @@ public final class PlayerTrailRenderer {
 				player.isUsingItem(),
 				player.getActiveHand(),
 				player.getItemUseTimeLeft(),
+				player.isOnFire(),
 				player.getItemUseTime(0.0f)
 		));
 	}
@@ -1025,6 +1027,7 @@ public final class PlayerTrailRenderer {
 			boolean usingItem,
 			Hand activeHand,
 			int itemUseTimeLeft,
+			boolean renderOnFire,
 			float itemUseTime
 	) {
 	}

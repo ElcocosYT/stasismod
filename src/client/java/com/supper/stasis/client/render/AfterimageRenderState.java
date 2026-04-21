@@ -19,13 +19,14 @@ public final class AfterimageRenderState {
 			boolean usingItem,
 			Hand activeHand,
 			int itemUseTimeLeft,
+			boolean renderOnFire,
 			float itemUseTime
 	) {
 		int color = ((int) (Math.max(0.0f, Math.min(1.0f, alpha)) * 255.0f) << 24)
 				| (6 << 16)
 				| (244 << 8)
 				| 255;
-		CURRENT_FRAME.set(new AfterimageFrame(color, pose, sneaking, equippedStacks, usingItem, activeHand, itemUseTimeLeft, itemUseTime));
+		CURRENT_FRAME.set(new AfterimageFrame(color, pose, sneaking, equippedStacks, usingItem, activeHand, itemUseTimeLeft, renderOnFire, itemUseTime));
 	}
 
 	public static void pop() {
@@ -102,6 +103,11 @@ public final class AfterimageRenderState {
 		return frame != null ? frame.itemUseTimeLeft() : null;
 	}
 
+	public static Boolean getRenderOnFireOverride() {
+		AfterimageFrame frame = CURRENT_FRAME.get();
+		return frame != null ? frame.renderOnFire() : null;
+	}
+
 	public static Float getItemUseTimeOverride() {
 		AfterimageFrame frame = CURRENT_FRAME.get();
 		return frame != null ? frame.itemUseTime() : null;
@@ -115,6 +121,7 @@ public final class AfterimageRenderState {
 			boolean usingItem,
 			Hand activeHand,
 			int itemUseTimeLeft,
+			boolean renderOnFire,
 			float itemUseTime
 	) {
 	}

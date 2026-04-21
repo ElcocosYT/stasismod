@@ -5,7 +5,6 @@ import com.supper.stasis.StasisTimings;
 import com.supper.stasis.client.StasisClientState;
 import java.util.IdentityHashMap;
 import java.util.Map;
-import java.util.Queue;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.ParticleManager;
@@ -127,7 +126,7 @@ public class ParticleManagerMixin {
 	}
 
 	@org.spongepowered.asm.mixin.injection.ModifyVariable(
-			method = "renderParticles*",
+			method = "addToBatch(Lnet/minecraft/client/render/SubmittableBatch;Lnet/minecraft/client/render/Frustum;Lnet/minecraft/client/render/Camera;F)V",
 			at = @At("HEAD"),
 			argsOnly = true,
 			ordinal = 0
