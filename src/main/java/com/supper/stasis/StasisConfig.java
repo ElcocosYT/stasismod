@@ -25,7 +25,7 @@ public record StasisConfig(
 	private static final String LEGACY_CONFIG_FILE_NAME = "stasis.properties";
 	private static final boolean DEFAULT_TRAILS_ACTIVE = true;
 	private static final boolean DEFAULT_TRAILS_RENDER_CAPES = true;
-	private static final int DEFAULT_TRAILS_AMOUNT_LIMIT = 190;
+	private static final int DEFAULT_TRAILS_AMOUNT_LIMIT = 70;
 	private static final String DEFAULT_TRAILS_GENERATION_TYPE = "C";
 	private static final double DEFAULT_TRAILS_CONTINUOUS_TIMINGS = 0.10;
 	private static final boolean DEFAULT_TRAILS_MID_SECONDS_GENERATION = false;
